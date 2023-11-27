@@ -10,17 +10,20 @@ def parseArg():
     parser.add_argument("-m", "--mode", help="Training mode scheme - two stage (ts) is the default"
     , required=False, choices = ['end2end-backbone', 'end2end-tps', 'end2end-full', 'ts1', 'ts2', 'ts-fl'], default = 'ts1')
     parser.add_argument("-dpath", "--datapath", help="Dataset path."
-    , required=False, default = './dataset/*/images/*.jpg') 	
+    , required=False, default = '/srv/storage/datasets/cadar/Downloads/sfm/*/images/*.jpg') 	
     parser.add_argument("-log", "--logdir", help="Output path where results will be saved."
-    , required=False, default = './logdir') 
+    , required=False, default = './log_dir') 
     parser.add_argument("-s", "--save", help="Path for saving model"
-    , required=False, default = './logdir')
+    , required=False, default = './log_dir')
     parser.add_argument("--dry_run", help="Sanity check, overfit the training loop without saving anything"
     , action = 'store_true')
     parser.add_argument("-gpu", "--gpu", help="GPU number"
-    , required=False, default = None)
+    , required=False, default = "0")
     parser.add_argument("-pre", "--pretrained", help="Pretrained network path for second stage"
     , required=False, default = None) 
+
+    parser.add_argument("-sim", "--simulation", help="Use simulation dataset"
+    , required=False, default = True) 
 
     args = parser.parse_args()
 
@@ -95,10 +98,10 @@ def train(args):
 
     ######   Prepare model, data and hyperparms #######
 
-    if not torch.cuda.is_available():
-        raise RuntimeError('Do you really want to train without a GPU? Then comment out this if')
+    # if not torch.cuda.is_available():
+    #     raise RuntimeError('Do you really want to train without a GPU? Then comment out this if')
 
-    dev = torch.device('cuda')
+    dev = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     experiment_name = args.mode
 
@@ -123,17 +126,27 @@ def train(args):
     if args.dry_run:
         batch_size = 2
 
-    augmentor = AugmentationPipe(device = dev,  
-                                img_dir = args.datapath,
-                                max_num_imgs = 3_000 if not args.dry_run else 32, #Limit number of images in training, original impl is 5000
-                                num_test_imgs = 100,
-                                out_resolution = (300, 200), #300,200 
-                                batch_size = batch_size
-                                )
+
+    if args.simulation:
+        from modules.dataset.simulation import KubrickInstances
+        simulation_data = KubrickInstances({
+            "data_dir": "/srv/storage/datasets/cadar/simulator/_dataset_train/",
+            "return_tensors": True
+        })
+
+    else:
+        augmentor = AugmentationPipe(device = dev,  
+                                    img_dir = args.datapath,
+                                    max_num_imgs = 3_000 if not args.dry_run else 32, #Limit number of images in training, original impl is 5000
+                                    num_test_imgs = 100,
+                                    out_resolution = (300, 200), #300,200 
+                                    batch_size = batch_size
+                                    )
+    
 
     logger = TrainLogger(logdir = args.logdir, name = experiment_name)
 
-    img = augmentor.sample_img
+    # img = augmentor.sample_img
 
     if args.mode == 'ts2' or args.mode == 'ts-fl':
         
@@ -175,7 +188,12 @@ def train(args):
     net.train()
     fig = plt.figure(figsize = (8, 6), dpi = 100)
 
-    p1, p2, Hs = make_batch_sfm(augmentor, 0.2)
+    if args.simulation:
+        batch = simulation_data.sample_batch(batch_size)
+    else:
+        p1, p2, Hs = make_batch_sfm(augmentor, 0.2)
+
+
     opt.zero_grad()
     with tqdm.tqdm(total=steps) as pbar:
         for i in range(steps):          
@@ -217,11 +235,23 @@ def train(args):
             pos_indexes = [0]        
                 
             if not args.dry_run:
-                p1, p2, Hs = make_batch_sfm(augmentor, difficulty)
+                if args.simulation:
+
+                    batch = simulation_data.sample_batch(batch_size)
+                    # p1, p2 = batch['img1'], batch['img2']
+                    p1 = [x['image0'] for x in batch]
+                    p2 = [x['image1'] for x in batch]
+
+                    p1 = torch.stack(p1).to(dev).float()
+                    p2 = torch.stack(p2).to(dev).float()
+
+                else:
+                    p1, p2, Hs = make_batch_sfm(augmentor, difficulty)
+
             
             kpts1, out1 = net(p1, return_tensors = True)
             kpts2, out2 = net(p2, return_tensors = True)
-            
+
             for b in range(batch_size):
                 #ignore samples that have too few keypoints to avoid singularities
                 if kpts1[b]['patches'] is None or kpts2[b]['patches'] is None  \
@@ -229,12 +259,19 @@ def train(args):
                     print('skipping batch item...')
                     continue
                 
-                idx, patches1, patches2 = get_positive_corrs(kpts1[b], kpts2[b], Hs[b], augmentor, i)
+                if args.simulation:
+                    warp10, _ = simulation_data.warp(batch[b], kpts2[b]['xy'].cpu().numpy(), inverse=True)
+                    warp10 = torch.from_numpy(warp10).to(dev).float()
+                    idx, patches1, patches2 = get_positive_corrs_simulation(kpts1[b], kpts2[b], warp10, i)
+
+                else:
+                    idx, patches1, patches2 = get_positive_corrs(kpts1[b], kpts2[b], Hs[b], augmentor, i)
                 
                 if len(patches1) >=16:
                 
                     #only distinct
                     if args.mode == 'end2end-backbone' or args.mode == 'ts1':
+                        import pdb; pdb.set_trace()
                         l_pdesc1 = F.normalize(net.sample_descs(out1['feat'][b], kpts1[b]['xy'][idx[:,0],:], H = p1.shape[2], W = p1.shape[3])) 
                         l_pdesc2 = F.normalize(net.sample_descs(out2['feat'][b], kpts2[b]['xy'][idx[:,1],:], H = p2.shape[2], W = p2.shape[3]))
                         pdesc1 = l_pdesc1 if pdesc1 is None else torch.vstack((pdesc1, l_pdesc1))
@@ -283,8 +320,13 @@ def train(args):
                 
                 dense_kp_logprobs = kpts1[b]['logprobs'].view(-1,1) + kpts2[b]['logprobs'].view(1,-1)
                 dense_logprobs = dense_kp_logprobs
-                dense_rewards, dense_rwd_sum = get_dense_rewards(kpts1[b]['xy'], kpts2[b]['xy'], Hs[b], augmentor,
-                                                                                    penalty = fp_penalty * alpha)
+
+                if args.simulation:
+                    dense_rewards, dense_rwd_sum = get_dense_rewards_simulation(kpts1[b]['xy'], kpts2[b]['xy'], warp10,
+                                                                                        penalty = fp_penalty * alpha)
+                else:
+                    dense_rewards, dense_rwd_sum = get_dense_rewards(kpts1[b]['xy'], kpts2[b]['xy'], Hs[b], augmentor,
+                                                                                        penalty = fp_penalty * alpha)
             
                 
                 if i > 0.75 * steps and not args.mode == 'ts1': #penalyze wrong matches
@@ -377,3 +419,7 @@ def train(args):
 
 if __name__ == '__main__':
     train(args)
+    # extractor = DEAL_extractor(args.pretrained)
+    # kps, descs = extractor.detectAndCompute('/home/guipotje/Sources/nonrigid-keypoint-detector-descriptor/assets/notredame.png',
+    #                                       threshold = 5.0)
+    # print(len(kps), ' ', descs.shape)

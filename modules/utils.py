@@ -159,3 +159,40 @@ def get_positive_corrs(kps1, kps2, H, augmentor, i=0, px_thr = 1.5):
     return torch.hstack((y_mins.unsqueeze(1),x_mins.unsqueeze(1))),  \
            kps1['patches'][y_mins], kps2['patches'][x_mins]
   
+
+    
+def get_positive_corrs_simulation(kps1, kps2, warped, i=0, px_thr = 1.5):
+    with torch.no_grad():
+        valid = warped[:,0] >= 0.
+        warped = warped[valid]
+
+        d_mat = torch.cdist(kps2['xy'], warped)
+        x_vmins, x_mins = torch.min(d_mat, dim=1)
+        y_mins = torch.arange(len(x_mins), device= d_mat.device).long()
+
+        #grab indices of positive correspodences & filter too close kps in the same image
+        y_mins = y_mins[(x_vmins < px_thr)] #* (self_vmins > 2.)]
+        x_mins = x_mins[(x_vmins < px_thr)] #* (self_vmins > 2.)]
+
+        # return idx1 idx2 and patches1 patches2
+
+    return torch.hstack((y_mins.unsqueeze(1),x_mins.unsqueeze(1))),  \
+              kps1['patches'][y_mins], kps2['patches'][x_mins]
+
+
+def get_dense_rewards_simulation(kps1, kps2, warped, penalty = 0., px_thr = 1.5):
+    with torch.no_grad():
+            
+        d_mat = torch.cdist(kps1, warped)
+        x_vmins, x_mins = torch.min(d_mat, dim=1)
+        y_mins = torch.arange(len(x_mins)).long()
+
+        d_mat[y_mins, x_mins] *= -1.
+        d_mat[d_mat >= 0.] = 0.
+        d_mat[d_mat < -px_thr] = 0.
+        d_mat[d_mat != 0.] = 1.
+
+        reward_mat = d_mat
+        reward_sum = reward_mat.sum() 
+        reward_mat[reward_mat == 0.] = penalty
+    return reward_mat, reward_sum
