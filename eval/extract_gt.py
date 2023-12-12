@@ -14,6 +14,10 @@ import numpy as np
 import pdb
 from scipy.spatial import KDTree
 
+def force_cudnn_initialization():
+    s = 32
+    dev = torch.device('cuda')
+    torch.nn.functional.conv2d(torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev))
 
 def write_sift(filepath, kps):
     with open(filepath + '.sift', 'w') as f:
@@ -42,11 +46,21 @@ def parseArg():
     , required=True) 
     parser.add_argument("-d", "--dir", help="is a dir with several dataset folders?"
     , action = 'store_true')
+    parser.add_argument("--cpu", help="Force CPU mode"
+    , action = 'store_true')
     parser.add_argument("-m", "--method", help="Method used to extract keypoints"
     , required=False, choices = ['sift', 'r2d2', 'aslfeat', 'pgnet', 'pgdeal'], default = 'sift')
     parser.add_argument("-np", "--net_path", help="pretrained weights path for model if applicable"
     , required=False, default = '') 
     args = parser.parse_args()
+
+    args = parser.parse_args()
+    if not args.cpu and not torch.cuda.is_available():
+        raise RuntimeError('GPU not available, try running with --cpu')
+    
+    if not args.cpu:
+        print('Using GPU')
+        force_cudnn_initialization()
 
     return args
 
@@ -80,7 +94,10 @@ else:
     SIFT = cv2.SIFT_create(nfeatures = 2048, contrastThreshold=0.004)
     pgnet =  PGNet(model = args.net_path, dev = dev, fixed_tps=False)
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+if args.cpu:
+    device = torch.device('cpu')
+else:
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 for dataset in datasets:
     if len(glob.glob(dataset + '/*.csv')) == 0: raise RuntimeError('Empty dataset with no .csv file')
@@ -111,7 +128,7 @@ for dataset in datasets:
         ref_kps = sorted(ref_kps, key = lambda x: x.response, reverse = True)[:maxKps]
 
 
-    print('Detected ref kps: ', len(ref_kps))
+    # print('Detected ref kps: ', len(ref_kps))
     for i, k in enumerate(ref_kps): k.class_id = i
     ref_kps = [kp for kp in ref_kps if ref_mask[int(kp.pt[1]), int(kp.pt[0])] > 0] #filter by object mask
     ref_idx = [k.class_id for k in ref_kps]
@@ -145,7 +162,7 @@ for dataset in datasets:
             maxKps = len(pgnet_kps)
             target_kps = sorted(target_kps, key = lambda x: x.response, reverse = True)[:maxKps]
 
-        print('Detected target kps: ', len(target_kps))
+        # print('Detected target kps: ', len(target_kps))
         # if target == '/srv/storage/datasets/nonrigiddataset/IJCV2020/All_PNG/SimulationICCV/kanagawa_rot/cloud_17':
         #     pdb.set_trace()
 
@@ -156,6 +173,12 @@ for dataset in datasets:
         if target_descs is not None:
             target_descs = target_descs[target_idx]
             np.save(loading_file + '.pgnet', target_descs)
+
+        if len(target_kps) == 0:
+            print('No keypoints detected in ', target)
+            write_sift(loading_file, target_kps)
+            write_matches(loading_file, [], [])
+            continue
 
         norm_factor = np.array(target_img.shape[:2][::-1], dtype = np.float32)
         theta = torch.tensor(theta_np, device= device)
@@ -174,7 +197,8 @@ for dataset in datasets:
         gt_tgt = gt_tgt[uidxs]
 
         img_match = draw_cv_matches(ref_img, target_img, ref_kps, target_kps, gt_ref, gt_tgt)
-        cv2.imwrite('/homeLocal/guipotje/test2/' + os.path.basename(target) + '_match.png', img_match)
+        # cv2.imwrite( + os.path.basename(target) + '_match.png', img_match)
+        cv2.imwrite(loading_file + '_match.png', img_match)
 
         write_sift(loading_file, target_kps)
         write_matches(loading_file, gt_ref, gt_tgt)

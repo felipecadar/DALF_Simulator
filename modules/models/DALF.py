@@ -6,20 +6,21 @@
 
 import torch
 from torch import nn
-from torch import optim
+# from torch import optim
 import torch.nn.functional as F
-import math
-import pdb, tqdm
+# import math
+# import pdb, tqdm
 import numpy as np
 import cv2
 
 import time
 import os
 
-import torchvision.transforms as transforms
+# import torchvision.transforms as transforms
 
 from modules.tps import pytorch as TPS
 #from modules import utils
+
 
 class DALF_extractor:
     """
@@ -44,6 +45,7 @@ class DALF_extractor:
         self.dev = dev
 
         print('running DALF on', self.dev)
+
 
         if model is None:
           abs_path = os.path.dirname(os.path.abspath(__file__))

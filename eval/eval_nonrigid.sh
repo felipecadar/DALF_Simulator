@@ -1,9 +1,9 @@
 #Please put here the path of images and TPS files from nonrigid benchmark
-PATH_IMGS='/srv/storage/datasets/nonrigiddataset/eval_bench/All_PNG'
-PATH_TPS='/homeLocal/guipotje/sshfs/datasets/gt_tps'
+PATH_IMGS='/work/cadar/Datasets/nonrigid_eval_bench/All_PNG'
+PATH_TPS='/work/cadar/Datasets/nonrigid_eval_bench/gt_tps'
 
 #Set working dir to save results. Please change
-working_dir='/tmp/nonrigid_eval'
+working_dir='./nonrigid_eval'
 mkdir -p $working_dir
 
 #############################################################################
@@ -20,10 +20,14 @@ metrics_path='./plotUnorderedPR.py'
 #ablation='model_ts2_095000'
 
 #For final eval
-ablation='model_ts-fl_final'
+ablation='scratch_model_ts-fl'
+# ablation='original_model_ts-fl'
+# ablation='finetune2_model_ts-fl'
 
 #Data Path
-network_path='../weights/model_ts-fl_final.pth'
+# network_path='/home/cadar/Documents/Github/DALF_Simulator/finetune2/model_ts-fl_010000.pth'
+# network_path='/home/cadar/Documents/Github/DALF_Simulator/weights/model_ts-fl_final.pth'
+network_path='/home/cadar/Documents/Github/DALF_Simulator/scratch/model_ts-fl_190002_final.pth'
 #network_path='ablation_models/'$ablation'.pth'
 
 #Original TPS files
@@ -37,8 +41,9 @@ out_path=$working_dir'/out_'$ablation
 
 echo 'copying original gt_tps '$tps_dir_o' to '$tps_dir
 cp -rf $tps_dir_o $tps_dir
-python3 $extract_gt_path -i $PATH_IMGS --tps_dir $tps_dir --dir -m pgdeal --net_path $network_path
+python3 $extract_gt_path -i $PATH_IMGS --tps_dir $tps_dir --dir -m pgdeal --net_path $network_path 
 python3 $benchmark_path -i $PATH_IMGS -o $out_path --dir --sift --tps_path $tps_dir --net_path $network_path
+
 #Remove old results cache
 rm *.dict
 
@@ -46,7 +51,7 @@ rm *.dict
 inputdir=$out_path
 
 #Metric type: [MS, MMA, inliers]
-metric=MS
+metric=MMA
 
 python3 $metrics_path -i $inputdir/Kinect1 -d --tps_path $tps_dir --mode erase --metric $metric
 python3 $metrics_path -i $inputdir/Kinect2Sampled -d --tps_path $tps_dir --mode append --metric $metric

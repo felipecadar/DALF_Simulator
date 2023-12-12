@@ -10,7 +10,7 @@ def parseArg():
     parser.add_argument("-m", "--mode", help="Training mode scheme - two stage (ts) is the default"
     , required=False, choices = ['end2end-backbone', 'end2end-tps', 'end2end-full', 'ts1', 'ts2', 'ts-fl'], default = 'ts1')
     parser.add_argument("-dpath", "--datapath", help="Dataset path."
-    , required=False, default = '/srv/storage/datasets/cadar/Downloads/sfm/*/images/*.jpg') 	
+    , required=False, default = '/work/cadar/Datasets/sfm/*/images/*.jpg') 	
     parser.add_argument("-log", "--logdir", help="Output path where results will be saved."
     , required=False, default = './log_dir') 
     parser.add_argument("-s", "--save", help="Path for saving model"
@@ -22,8 +22,11 @@ def parseArg():
     parser.add_argument("-pre", "--pretrained", help="Pretrained network path for second stage"
     , required=False, default = None) 
 
-    parser.add_argument("-sim", "--simulation", help="Use simulation dataset"
-    , required=False, default = True) 
+    parser.add_argument("-sim", "--simulation", help="Use simulation dataset", action='store_true'
+    , required=False, default = False) 
+
+    parser.add_argument("--finetune", help="Use simulation dataset", action='store_true'
+    , required=False, default = False) 
 
     args = parser.parse_args()
 
@@ -32,7 +35,8 @@ def parseArg():
             raise RuntimeError('invalid pretrained path -- it is required for second stage;')
 
     if args.logdir is not None and not os.path.exists(args.logdir):
-        raise RuntimeError(args.logdir + ' does not exist! Please create the logdir')
+        os.makedirs(args.logdir)
+        # raise RuntimeError(args.logdir + ' does not exist! Please create the logdir')
 
     if not args.dry_run and args.save is None:
         raise RuntimeError('choose a location to save the models')
@@ -40,8 +44,9 @@ def parseArg():
     if not args.dry_run and not os.path.exists(args.save):
         raise RuntimeError(args.save + ' does not exist!')
 
-    if len( glob.glob(args.datapath)) == 0:
-        raise RuntimeError(args.datapath + ': no images found')
+    if not args.simulation:
+        if len( glob.glob(args.datapath)) == 0:
+            raise RuntimeError(args.datapath + ': no images found')
 
     if args.gpu is not None:
         os.environ['CUDA_VISIBLE_DEVICES']=args.gpu # "0,1" or "0" for example
@@ -104,16 +109,17 @@ def train(args):
     dev = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     experiment_name = args.mode
+    BATCH_SCALE = 2
 
     if args.mode == 'end2end-backbone' or args.mode == 'ts1':
-        batch_size = 12
-        steps = 80_000 if not args.dry_run else 1000
+        batch_size = 12 // BATCH_SCALE
+        steps = (80_000 * BATCH_SCALE) if not args.dry_run else 1000
         lr = 1e-3
 
     else:
         #reduce batch size due to memory constraints 
-        batch_size = 6
-        steps = 95_001 if not args.dry_run else 1000
+        batch_size = 6 // BATCH_SCALE
+        steps = (95_001 * BATCH_SCALE) if not args.dry_run else 1000
         lr = 2e-4
 
     if args.mode == 'end2end-backbone':
@@ -121,7 +127,7 @@ def train(args):
     else:
         backbone_nfeats = 64      
 
-    num_grad_accs = 4 # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
+    num_grad_accs = 4*BATCH_SCALE # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
 
     if args.dry_run:
         batch_size = 2
@@ -130,9 +136,11 @@ def train(args):
     if args.simulation:
         from modules.dataset.simulation import KubrickInstances
         simulation_data = KubrickInstances({
-            "data_dir": "/srv/storage/datasets/cadar/simulator/_dataset_train/",
+            "data_dir": "/work/cadar/Datasets/simulation/train/",
             "return_tensors": True
         })
+
+        print("Simulation dataset loaded. Size: ", len(simulation_data))
 
     else:
         augmentor = AugmentationPipe(device = dev,  
@@ -154,7 +162,7 @@ def train(args):
 
         extractor = DALF_extractor(args.pretrained)
 
-        if args.mode == 'ts-fl':
+        if args.mode == 'ts-fl' and not args.finetune:
           print('adding fusion layer...')
           extractor.net.fusion_layer = nn.Sequential(nn.Linear(128, 128), nn.ReLU(),
                                             nn.Linear(128, 128), nn.Sigmoid())
@@ -163,10 +171,11 @@ def train(args):
         net = extractor.net.to(dev).train()
         
         #Freeze encoder layers
-        for param in net.net.encoder.parameters():
-            param.requires_grad = False
-        for param in net.net.features.parameters():
-            param.requires_grad = False
+        if not args.finetune:
+            for param in net.net.encoder.parameters():
+                param.requires_grad = False
+            for param in net.net.features.parameters():
+                param.requires_grad = False
 
 
     else:
@@ -180,6 +189,10 @@ def train(args):
     T = 7. # inv of softmax temperature
 
     ######   Training Loop   #######
+    if args.finetune:
+        print('finetuning...')
+        lr = 1e-5
+        steps = 90_000
 
     opt = optim.Adam(filter(lambda x: x.requires_grad, net.parameters()) , lr = lr)
     # scheduler = torch.optim.lr_scheduler.StepLR(opt, step_size=500, gamma=0.8)
@@ -190,6 +203,11 @@ def train(args):
 
     if args.simulation:
         batch = simulation_data.sample_batch(batch_size)
+        p1 = [x['image0'] for x in batch]
+        p2 = [x['image1'] for x in batch]
+
+        p1 = torch.stack(p1).to(dev).float()
+        p2 = torch.stack(p2).to(dev).float()
     else:
         p1, p2, Hs = make_batch_sfm(augmentor, 0.2)
 
@@ -236,7 +254,6 @@ def train(args):
                 
             if not args.dry_run:
                 if args.simulation:
-
                     batch = simulation_data.sample_batch(batch_size)
                     # p1, p2 = batch['img1'], batch['img2']
                     p1 = [x['image0'] for x in batch]
@@ -245,12 +262,23 @@ def train(args):
                     p1 = torch.stack(p1).to(dev).float()
                     p2 = torch.stack(p2).to(dev).float()
 
+                    # show batch 
+                    img1 = p1[0].detach().cpu().numpy().transpose(1,2,0)
+                    img2 = p2[0].detach().cpu().numpy().transpose(1,2,0)
+                    img1 = (img1 * 255 ).astype(np.uint8)
+                    img2 = (img2 * 255 ).astype(np.uint8)
+                    cv2.imshow('img1', img1)
+                    cv2.imshow('img2', img2)
+                    cv2.waitKey(1)
+
                 else:
                     p1, p2, Hs = make_batch_sfm(augmentor, difficulty)
 
             
             kpts1, out1 = net(p1, return_tensors = True)
             kpts2, out2 = net(p2, return_tensors = True)
+
+
 
             for b in range(batch_size):
                 #ignore samples that have too few keypoints to avoid singularities
@@ -260,18 +288,45 @@ def train(args):
                     continue
                 
                 if args.simulation:
-                    warp10, _ = simulation_data.warp(batch[b], kpts2[b]['xy'].cpu().numpy(), inverse=True)
-                    warp10 = torch.from_numpy(warp10).to(dev).float()
+                    warp10, _ = simulation_data.warp_torch(batch[b], kpts2[b]['xy'], inverse=True)
                     idx, patches1, patches2 = get_positive_corrs_simulation(kpts1[b], kpts2[b], warp10, i)
+                    # image0 = batch[b]['image0']
+                    # image1 = batch[b]['image1']
+                    # image0 = (image0.detach().cpu().numpy().transpose(1,2,0) * 255 ).astype(np.uint8)
+                    # image1 = (image1.detach().cpu().numpy().transpose(1,2,0) * 255 ).astype(np.uint8)
 
                 else:
                     idx, patches1, patches2 = get_positive_corrs(kpts1[b], kpts2[b], Hs[b], augmentor, i)
-                
+
+                # plot keypoints and save to tensorboard
+                if i % 100 == 0:
+                    print('plotting keypoints...')
+                    image0 = p1[b].detach().cpu().numpy().transpose(1,2,0)
+                    image1 = p2[b].detach().cpu().numpy().transpose(1,2,0)
+                    image0 = (image0 * 255 ).astype(np.uint8)
+                    image1 = (image1 * 255 ).astype(np.uint8)
+
+                    kpts1_cv2 = kpts1[b]['xy'].detach().cpu().numpy()
+                    kpts2_cv2 = kpts2[b]['xy'].detach().cpu().numpy()
+                    kpts1_cv2 = [cv2.KeyPoint(x[0], x[1], 1) for x in kpts1_cv2]
+                    kpts2_cv2 = [cv2.KeyPoint(x[0], x[1], 1) for x in kpts2_cv2]
+
+                    positive_cors = idx.detach().cpu().numpy()
+                    positive_cors = [cv2.DMatch(x[0], x[1], 1) for x in positive_cors]
+
+                    match_image = cv2.drawMatches(image0, kpts1_cv2, image1, kpts2_cv2, positive_cors, None, flags=0)
+
+                    # kp_image0 = cv2.drawKeypoints(image0, kpts1_cv2, None)
+                    # kp_image1 = cv2.drawKeypoints(image1, kpts2_cv2, None)
+                    # kp_image = cv2.hconcat([kp_image0, kp_image1])
+
+                    # logger.log_fig(i, kp_image, f'Keypoints/{b}')
+                    logger.log_fig(i, match_image, f'Matches/{b}')
+
                 if len(patches1) >=16:
                 
                     #only distinct
                     if args.mode == 'end2end-backbone' or args.mode == 'ts1':
-                        import pdb; pdb.set_trace()
                         l_pdesc1 = F.normalize(net.sample_descs(out1['feat'][b], kpts1[b]['xy'][idx[:,0],:], H = p1.shape[2], W = p1.shape[3])) 
                         l_pdesc2 = F.normalize(net.sample_descs(out2['feat'][b], kpts2[b]['xy'][idx[:,1],:], H = p2.shape[2], W = p2.shape[3]))
                         pdesc1 = l_pdesc1 if pdesc1 is None else torch.vstack((pdesc1, l_pdesc1))
@@ -361,14 +416,15 @@ def train(args):
 
                 fig = plt.figure(figsize = (8, 6), dpi = 100)
                 print('difficulty %.3f'%(difficulty))
-            
+           
             #loss = -loss.mean() #average across batch
             loss = -(loss.mean() + loss_kp.mean())
             #hard_loss = hard_loss.mean()
             
             hard_loss = hardnet_loss(pdesc1, pdesc2) if pdesc1 is not None else None
             hard_loss_nrigid = hardnet_loss(pdesc1nr, pdesc2nr) if pdesc1nr is not None else None
-            
+
+           
             if hard_loss is not None and hard_loss_nrigid is not None:
                 hard_loss += hard_loss_nrigid
                 hard_loss /= 2.
@@ -377,7 +433,7 @@ def train(args):
                 
             if hard_loss is not None:
                 loss += 0.005 * hard_loss
-                
+
             #if ssimloss is not None:
             #    loss += 0.05 * ssimloss.mean()
                 
@@ -405,7 +461,6 @@ def train(args):
                             kp_rewards = dense_correct/batch_size,
                             hard_loss = hard_loss.item() if i > 150 and hard_loss is not None else 0.,
                             ssim_loss = ssimloss.mean().item()*2. if i > 150 and ssimloss is not None else 0.)
-            
             
 
             if i%5000 == 0:
