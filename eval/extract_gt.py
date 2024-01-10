@@ -4,7 +4,6 @@ import sys
 modules = os.path.dirname(os.path.realpath(__file__)) + '/..'         
 sys.path.insert(0, modules)
 
-import modules.tps as tps
 import torch
 import cv2
 import glob
@@ -13,6 +12,34 @@ import argparse
 import numpy as np
 import pdb
 from scipy.spatial import KDTree
+
+def tps(theta, ctrl, grid):
+    N, H, W, _ = grid.size()
+
+    if ctrl.dim() == 2:
+        ctrl = ctrl.expand(N, *ctrl.size())
+    
+    T = ctrl.shape[1]
+    diff = grid[...,1:].unsqueeze(-2) - ctrl.unsqueeze(1).unsqueeze(1)
+    D = torch.sqrt((diff**2).sum(-1))
+    U = (D**2) * torch.log(D + 1e-6)
+    w, a = theta[:, :-3, :], theta[:, -3:, :]
+    reduced = T + 2  == theta.shape[1]
+    if reduced:
+        w = torch.cat((-w.sum(dim=1, keepdim=True), w), dim=1) 
+    b = torch.bmm(U.view(N, -1, T), w).view(N,H,W,2)
+    z = torch.bmm(grid.view(N,-1,3), a).view(N,H,W,2) + b
+    return z
+
+def tps_sparse(theta, ctrl, xy):
+    if xy.dim() == 2:
+        xy = xy.expand(theta.shape[0], *xy.size())
+    N, M = xy.shape[:2]
+    grid = xy.new(N, M, 3)
+    grid[..., 0] = 1.
+    grid[..., 1:] = xy
+    z = tps(theta, ctrl, grid.view(N,M,1,3))
+    return xy + z.view(N, M, 2)
 
 def force_cudnn_initialization():
     s = 32
@@ -49,7 +76,7 @@ def parseArg():
     parser.add_argument("--cpu", help="Force CPU mode"
     , action = 'store_true')
     parser.add_argument("-m", "--method", help="Method used to extract keypoints"
-    , required=False, choices = ['sift', 'r2d2', 'aslfeat', 'pgnet', 'pgdeal'], default = 'sift')
+    , required=False, choices = ['sift', 'r2d2', 'aslfeat', 'pgnet', 'pgdeal', 'tfeat'], default = 'sift')
     parser.add_argument("-np", "--net_path", help="pretrained weights path for model if applicable"
     , required=False, default = '') 
     args = parser.parse_args()
@@ -84,6 +111,17 @@ tps_path = args.tps_dir
 datasets = list(filter(lambda x: 'DeSurTSampled' in x or  'Kinect1' in x or 'Kinect2Sampled' in x or 'SimulationICCV' in x, datasets))
 if args.method == 'r2d2':
     SIFT = R2D2()
+elif args.method == 'tfeat':
+    from easy_local_features.feature.baseline_tfeat import TFeat_baseline
+    detector = cv2.SIFT_create(nfeatures = 2048, contrastThreshold=0.004)
+    descritor = TFeat_baseline(device=0)
+    
+    # Finetuned
+    descritor.model.load_state_dict(torch.load('/home/cadar/Documents/Github/tfeat/best-tfeat-simulation.pth', map_location=torch.device('cuda')))
+    
+    # Trained from scratch
+    # descritor.model.load_state_dict(torch.load('/home/cadar/Documents/Github/tfeat/best-tfeat-finetune-simulation.pth', map_location=torch.device('cuda')))
+
 elif args.method == 'aslfeat':
     SIFT = ASLFeat()
 elif args.method == 'pgnet':
@@ -121,6 +159,9 @@ for dataset in datasets:
 
     if args.method == 'pgnet' or args.method == 'pgdeal':
         ref_kps, ref_descs = SIFT.detectAndCompute(ref_img, None)
+    elif args.method == 'tfeat':
+        ref_kps = detector.detect(ref_img, None)
+        ref_descs, _ = descritor.compute(ref_img, ref_kps)
     else:
         ref_kps = SIFT.detect(ref_img, None)
         pgnet_kps, _ = pgnet.detectAndCompute(ref_img, None) 
@@ -156,6 +197,9 @@ for dataset in datasets:
 
         if args.method == 'pgnet' or args.method == 'pgdeal':
             target_kps, target_descs = SIFT.detectAndCompute(target_img, None)
+        elif args.method == 'tfeat':
+            target_kps = detector.detect(target_img, None)
+            target_descs, _ = descritor.compute(target_img, target_kps)
         else: 
             target_kps = SIFT.detect(target_img, None)
             pgnet_kps, _ = pgnet.detectAndCompute(target_img, None) 
@@ -183,7 +227,7 @@ for dataset in datasets:
         norm_factor = np.array(target_img.shape[:2][::-1], dtype = np.float32)
         theta = torch.tensor(theta_np, device= device)
         tgt_coords = np.array([kp.pt for kp in target_kps], dtype = np.float32) 
-        warped_coords = tps.pytorch.tps_sparse(theta, torch.tensor(ctrl_pts, device=device), torch.tensor(tgt_coords / norm_factor, 
+        warped_coords = tps_sparse(theta, torch.tensor(ctrl_pts, device=device), torch.tensor(tgt_coords / norm_factor, 
                                                                         device=device)).squeeze(0).cpu().numpy() * norm_factor
         tree = KDTree([kp.pt for kp in ref_kps])
         dists, idxs_ref = tree.query(warped_coords)

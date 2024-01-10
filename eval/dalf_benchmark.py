@@ -143,7 +143,7 @@ def get_gt_idx(kp, kp_gt):
 def run_benchmark(args):
 
 	dev = torch.device('cuda' if torch.cuda.is_available else 'cpu')
-	extractor = PGNet(model = args.net_path, dev = dev, fixed_tps=False)
+	# extractor = PGNet(model = args.net_path, dev = dev, fixed_tps=False)
 	exp_name = 'dalf'
 
 	print('Running benchmark')

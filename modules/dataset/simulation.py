@@ -35,7 +35,7 @@ def NOCS2Color(NOCS):
     return ((NOCS.astype(float) / 65536 ) * 255).astype(np.uint8)
 
 @lru_cache(1000)
-def load_sample(self, rgb_path):
+def load_sample(rgb_path):
     image = cv2.imread(rgb_path)
     segmentation = cv2.imread(rgb_path.replace('rgba', 'segmentation'), cv2.IMREAD_UNCHANGED)
     uv_coords = cv2.imread(rgb_path.replace('rgba', 'uv'), cv2.IMREAD_UNCHANGED)
@@ -411,13 +411,11 @@ class KubricTriplets(Dataset):
         keypoints1 = keypoints1[valid_idx]
 
         # extract positive torch patches
-        patches0 = extract_patches(sample0['image'], keypoints0)
-        patches1 = extract_patches(sample1['image'], keypoints1)
+        patches_anchor = extract_patches(sample0['image'], keypoints0)
+        patches_positive = extract_patches(sample1['image'], keypoints1)
+        patches_negative = patches_positive[torch.randperm(len(patches_positive))]
 
-        return {
-            'patches0': patches0,
-            'patches1': patches1,
-        }
+        return patches_anchor, patches_positive, patches_negative
 
     def __len__(self) -> int:
         return len(self.all_pairs)
