@@ -126,7 +126,7 @@ def get_GT_kps(
 
 
 
-LOCAL_DATA = '/work/cadar/Datasets/simulation/train/'
+LOCAL_DATA = '/work/cadar/Datasets/simulation_v2/train_single_object/'
 
 class KubrickInstances(Dataset):
     default_config = {
@@ -141,38 +141,40 @@ class KubrickInstances(Dataset):
         self.config = {**self.default_config, **config}
         dataset_path = self.config['data_dir']
 
-        # with open(dataset_path + '/selected_pairs.json') as f:
-        #     self.experiments_definition = json.load(f)
-
-        global_pairs = []
-
-        for folder in os.listdir(dataset_path):
-            if os.path.isdir(os.path.join(dataset_path, folder)):
-                # read the pairs.txt
-                pairs_path = os.path.join(dataset_path, folder, 'pairs.txt')
-                if os.path.exists(pairs_path):
-                    with open(pairs_path) as f:
-                        pairs = f.readlines()
-                        pairs = [pair.strip().split(' ') for pair in pairs]
-                        pairs = [[ pair[0], pair[1], float(pair[2])] for pair in pairs]
-                        global_pairs.extend(pairs)
+        with open(dataset_path + 'selected_pairs_v2.json') as f:
+            self.experiments_definition = json.load(f)
+            
+        global_pairs = [ self.experiments_definition[key][subset] for key in self.experiments_definition for subset in self.experiments_definition[key] ]
+        global_pairs = reduce(lambda x, y: x + y, global_pairs)
+        
+        if self.config['max_pairs'] > 0:
+            global_pairs = global_pairs[:self.config['max_pairs']]
 
         # Get all images recursively
-        self.all_images = glob.glob(dataset_path + '/**/rgba*.png', recursive=True)
+        self.all_images = []
+
         self.all_pairs = []
-
-        self.sample_image = cv2.imread(self.all_images[0])
-
         for pair in global_pairs:
+            if pair[0].startswith('/'):
+                pair[0] = pair[0][1:]
+            if pair[1].startswith('/'):
+                pair[1] = pair[1][1:]
+            
             self.all_pairs.append({
-                "image0_path": pair[0],
-                "image1_path": pair[1],
-                "covisibility": pair[2],
+                "image0_path": os.path.join(self.config['data_dir'], pair[0]),
+                "image1_path": os.path.join(self.config['data_dir'], pair[1]),
             })
 
+            self.all_images.append(self.all_pairs[-1]['image0_path'])
+            self.all_images.append(self.all_pairs[-1]['image1_path'])
+            
+        self.all_images = list(set(self.all_images))
+            
         self.all_samples = {}
         for image_path in tqdm(self.all_images, desc="Loading all images"):
             self.all_samples[image_path] = load_sample(image_path)
+            
+        self.sample_image = cv2.imread(self.all_images[0])
     
     def load_sample(self, rgb_path):
         if rgb_path not in self.all_samples:
@@ -190,8 +192,8 @@ class KubrickInstances(Dataset):
     def __getitem__(self, index: int):
         item_dict = self.all_pairs[index].copy()
 
-        sample0 = self.load_sample(os.path.join(self.config['data_dir'], item_dict['image0_path']))
-        sample1 = self.load_sample(os.path.join(self.config['data_dir'], item_dict['image1_path']))
+        sample0 = self.load_sample(item_dict['image0_path'])
+        sample1 = self.load_sample(item_dict['image1_path'])
 
         return_dict = {}
 
@@ -338,21 +340,11 @@ class KubricTriplets(Dataset):
         self.config = {**self.default_config, **config}
         dataset_path = self.config['data_dir']
 
-        # with open(dataset_path + '/selected_pairs.json') as f:
-        #     self.experiments_definition = json.load(f)
-
-        pairs = []
-
-        for folder in os.listdir(dataset_path):
-            if os.path.isdir(os.path.join(dataset_path, folder)):
-                # read the pairs.txt
-                pairs_path = os.path.join(dataset_path, folder, 'pairs.txt')
-                if os.path.exists(pairs_path):
-                    with open(pairs_path) as f:
-                        pairs = f.readlines()
-                        pairs = [pair.strip().split(' ') for pair in pairs]
-                        pairs = [[ pair[0], pair[1], float(pair[2])] for pair in pairs]
-                        pairs.extend(pairs)
+        with open(dataset_path + '/selected_pairs_v2.json') as f:
+            self.experiments_definition = json.load(f)
+            
+        # self.experiments_definition['exp']['subset'] = [p1, p2, covisibility]
+        pairs = [ self.experiments_definition[key][subset] for key in self.experiments_definition for subset in self.experiments_definition[key] ]
 
         # Get all images recursively
         self.all_images = glob.glob(dataset_path + '/**/rgba*.png', recursive=True)
@@ -364,7 +356,6 @@ class KubricTriplets(Dataset):
             self.all_pairs.append({
                 "image0_path": pair[0],
                 "image1_path": pair[1],
-                "covisibility": pair[2],
             })
 
         # load all samples
@@ -431,21 +422,25 @@ class KubricTriplets(Dataset):
 
 
 if __name__ == "__main__":
+
+    import sys
+    sys.path.append('/work/cadar/Github/DALF_Simulator/')
+    from modules.utils import plot_pair, plot_matches, plot_keypoints, show, plot_overlay
     
-    sift = cv2.SIFT_create(256)
+    sift = cv2.SIFT_create(30)
     dataset = KubrickInstances({
-        "data_dir": "/work/cadar/Datasets/simulation/train/",
+        "data_dir": LOCAL_DATA,
         "return_tensors": False
     })
 
     torch_dataset = KubrickInstances({
-        "data_dir": "/work/cadar/Datasets/simulation/train/",
+        "data_dir": LOCAL_DATA,
         "return_tensors": True
     })
 
     item = dataset[0]
     torch_item = torch_dataset[0]
-
+    
     kp0, desc0 = sift.detectAndCompute(item['image0'], None)
     kp1, desc1 = sift.detectAndCompute(item['image1'], None)
 
@@ -464,52 +459,60 @@ if __name__ == "__main__":
     # warp01 = warp01[valid]
     # dist01 = dist01.cpu().detach().numpy()[valid]
 
+    uv_coords0 = ((torch_item['uv_coords0']/ 2**16) * 255).cpu().numpy().astype(np.uint8)
+    uv_coords1 = ((torch_item['uv_coords1']/ 2**16) * 255).cpu().numpy().astype(np.uint8)
 
-    joint = np.concatenate([item['image0'], item['image1']], axis=1)
+    plot_pair(torch_item['image0'], torch_item['image1'])
+    plot_overlay(uv_coords0, uv_coords1)
+    plot_keypoints(torch_kps0, color='r')
+    plot_matches(torch_kps0, warp01, color='g')
+    show()
 
-    for i in range(len(kp0)):
-        kp = kp0[i].pt
-        cv2.circle(joint, (int(kp[0]), int(kp[1])), 3, (0, 255, 0), -1)
-    for i in range(len(kp1)):
-        kp = kp1[i].pt
-        cv2.circle(joint, (int(kp[0]) + 512, int(kp[1])), 3, (0, 255, 0), -1)
+    # joint = np.concatenate([item['image0'], item['image1']], axis=1)
 
-    for i in range(len(kp0)):
-        kp_src = kp0[i].pt
-        kp_tgt = warp01[i]
+    # for i in range(len(kp0)):
+    #     kp = kp0[i].pt
+    #     cv2.circle(joint, (int(kp[0]), int(kp[1])), 3, (0, 255, 0), -1)
+    # for i in range(len(kp1)):
+    #     kp = kp1[i].pt
+    #     cv2.circle(joint, (int(kp[0]) + 512, int(kp[1])), 3, (0, 255, 0), -1)
 
-        if kp_tgt[0] > 0:
-            cv2.line(joint, (int(kp_src[0]), int(kp_src[1])), (int(kp_tgt[0]) + 512, int(kp_tgt[1])), (0, 255, 0), 1)
+    # for i in range(len(kp0)):
+    #     kp_src = kp0[i].pt
+    #     kp_tgt = warp01[i]
 
-    # save
-    cv2.imshow("joint.png", joint)
-    cv2.waitKey(0)
+    #     if kp_tgt[0] > 0:
+    #         cv2.line(joint, (int(kp_src[0]), int(kp_src[1])), (int(kp_tgt[0]) + 512, int(kp_tgt[1])), (0, 255, 0), 1)
+
+    # # save
+    # cv2.imshow("joint.png", joint)
+    # cv2.waitKey(0)
 
     ### TEST OPENCV
-    joint = np.concatenate([item['image0'], item['image1']], axis=1)
+    # joint = np.concatenate([item['image0'], item['image1']], axis=1)
 
-    warp01, dist01 = dataset.warp(item, kp0)
-    warp10, dist10 = dataset.warp(item, kp1, inverse=True)
+    # warp01, dist01 = dataset.warp(item, kp0)
     # warp10, dist10 = dataset.warp(item, kp1, inverse=True)
+    # # warp10, dist10 = dataset.warp(item, kp1, inverse=True)
 
-    # extract image shape
-    H, W, _ = item['image0'].shape
+    # # extract image shape
+    # H, W, _ = item['image0'].shape
 
-    for i in range(len(kp0)):
-        kp = kp0[i].pt
-        cv2.circle(joint, (int(kp[0]), int(kp[1])), 3, (0, 255, 0), -1)
-    for i in range(len(kp1)):
-        kp = kp1[i].pt
-        cv2.circle(joint, (int(kp[0]) + 512, int(kp[1])), 3, (0, 255, 0), -1)
+    # for i in range(len(kp0)):
+    #     kp = kp0[i].pt
+    #     cv2.circle(joint, (int(kp[0]), int(kp[1])), 3, (0, 255, 0), -1)
+    # for i in range(len(kp1)):
+    #     kp = kp1[i].pt
+    #     cv2.circle(joint, (int(kp[0]) + 512, int(kp[1])), 3, (0, 255, 0), -1)
 
-    for i in range(len(kp0)):
-        kp_src = kp0[i].pt
-        kp_tgt = warp01[i]
+    # for i in range(len(kp0)):
+    #     kp_src = kp0[i].pt
+    #     kp_tgt = warp01[i]
 
-        if kp_tgt[0] > 0:
-            cv2.line(joint, (int(kp_src[0]), int(kp_src[1])), (int(kp_tgt[0]) + 512, int(kp_tgt[1])), (0, 255, 0), 1)
+    #     if kp_tgt[0] > 0:
+    #         cv2.line(joint, (int(kp_src[0]), int(kp_src[1])), (int(kp_tgt[0]) + 512, int(kp_tgt[1])), (0, 255, 0), 1)
 
-    # save
-    cv2.imshow("joint_cv2.png", joint)
+    # # save
+    # cv2.imshow("joint_cv2.png", joint)
     
-    cv2.waitKey(0)
+    # cv2.waitKey(0)

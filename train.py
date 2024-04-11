@@ -11,6 +11,8 @@ def parseArg():
     , required=False, choices = ['end2end-backbone', 'end2end-tps', 'end2end-full', 'ts1', 'ts2', 'ts-fl'], default = 'ts1')
     parser.add_argument("-dpath", "--datapath", help="Dataset path."
     , required=False, default = '/work/cadar/Datasets/sfm/*/images/*.jpg') 	
+    parser.add_argument("-sdpath", "--sim_datapath", help="Simulation Dataset path."
+    , required=False, default = '/work/cadar/Datasets/simulation_v2/train_single_object/') 	
     parser.add_argument("-log", "--logdir", help="Output path where results will be saved."
     , required=False, default = './log_dir') 
     parser.add_argument("-s", "--save", help="Path for saving model"
@@ -136,7 +138,7 @@ def train(args):
     if args.simulation:
         from modules.dataset.simulation import KubrickInstances
         simulation_data = KubrickInstances({
-            "data_dir": "/work/cadar/Datasets/simulation/train/",
+            "data_dir": args.sim_datapath,
             "return_tensors": True
         })
 
@@ -288,6 +290,22 @@ def train(args):
                     continue
                 
                 if args.simulation:
+                    # get mask for keypoints in foreground
+                    bgmask0 = batch[b]['bgmask0']
+                    bgmask1 = batch[b]['bgmask1']
+                    
+                    isinside0 = torch.tensor([bgmask0[int(x[1]), int(x[0])] for x in kpts1[b]['xy']]).to(dev) > 0
+                    isinside1 = torch.tensor([bgmask1[int(x[1]), int(x[0])] for x in kpts2[b]['xy']]).to(dev) > 0
+                    
+                    kpts1[b]['logprobs'] = kpts1[b]['logprobs'][isinside0]
+                    kpts2[b]['logprobs'] = kpts2[b]['logprobs'][isinside1]
+                    
+                    kpts1[b]['xy'] = kpts1[b]['xy'][isinside0]
+                    kpts2[b]['xy'] = kpts2[b]['xy'][isinside1]
+                    
+                    kpts1[b]['patches'] = kpts1[b]['patches'][isinside0]
+                    kpts2[b]['patches'] = kpts2[b]['patches'][isinside1]
+                    
                     warp10, _ = simulation_data.warp_torch(batch[b], kpts2[b]['xy'], inverse=True)
                     idx, patches1, patches2 = get_positive_corrs_simulation(kpts1[b], kpts2[b], warp10, i)
                     # image0 = batch[b]['image0']
