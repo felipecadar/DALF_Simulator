@@ -170,16 +170,17 @@ class KubrickInstances(Dataset):
             
         self.all_images = list(set(self.all_images))
             
-        self.all_samples = {}
-        for image_path in tqdm(self.all_images, desc="Loading all images"):
-            self.all_samples[image_path] = load_sample(image_path)
+        # self.all_samples = {}
+        # for image_path in tqdm(self.all_images, desc="Loading all images"):
+        #     self.all_samples[image_path] = load_sample(image_path)
             
         self.sample_image = cv2.imread(self.all_images[0])
     
     def load_sample(self, rgb_path):
-        if rgb_path not in self.all_samples:
-            self.all_samples[rgb_path] = load_sample(rgb_path)
-        return self.all_samples[rgb_path]
+        # if rgb_path not in self.all_samples:
+        #     self.all_samples[rgb_path] = load_sample(rgb_path)
+        # return self.all_samples[rgb_path]
+        return load_sample(rgb_path)
 
     def countExps(self):
         print("Found {} images".format(len(self.all_images)))
