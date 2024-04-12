@@ -12,7 +12,7 @@ def parseArg():
     parser.add_argument("-dpath", "--datapath", help="Dataset path."
     , required=False, default = '/work/cadar/Datasets/sfm/*/images/*.jpg') 	
     parser.add_argument("-sdpath", "--sim_datapath", help="Simulation Dataset path."
-    , required=False, default = '/work/cadar/Datasets/simulation_v2/train_single_object/') 	
+    , required=False, default = '/work/cadar/Datasets/simulation_v2/train_single_obj/') 	
     parser.add_argument("-log", "--logdir", help="Output path where results will be saved."
     , required=False, default = './log_dir') 
     parser.add_argument("-s", "--save", help="Path for saving model"
