@@ -306,6 +306,10 @@ def train(args):
                     kpts1[b]['patches'] = kpts1[b]['patches'][isinside0]
                     kpts2[b]['patches'] = kpts2[b]['patches'][isinside1]
                     
+                    if len(kpts1[b]['xy']) < 16 or len(kpts2[b]['xy']) < 16:
+                        print('skipping batch item...')
+                        continue
+
                     warp10, _ = simulation_data.warp_torch(batch[b], kpts2[b]['xy'], inverse=True)
                     idx, patches1, patches2 = get_positive_corrs_simulation(kpts1[b], kpts2[b], warp10, i)
                     # image0 = batch[b]['image0']
