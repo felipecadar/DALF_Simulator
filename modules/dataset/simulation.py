@@ -126,7 +126,7 @@ def get_GT_kps(
 
 
 
-LOCAL_DATA = '/work/cadar/Datasets/simulation_v2/train_single_object/'
+LOCAL_DATA = '/work/cadar/Datasets/simulation_v2/train_single_obj/'
 
 class KubrickInstances(Dataset):
     default_config = {
@@ -138,7 +138,9 @@ class KubrickInstances(Dataset):
     def __init__(self, config={}) -> None:
         super().__init__()
 
-        self.config = {**self.default_config, **config}
+        self.config = {**self.default_config}
+        self.config.update(config)
+        
         dataset_path = self.config['data_dir']
 
         with open(dataset_path + 'selected_pairs_v2.json') as f:
