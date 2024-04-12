@@ -264,14 +264,14 @@ def train(args):
                     p1 = torch.stack(p1).to(dev).float()
                     p2 = torch.stack(p2).to(dev).float()
 
-                    # show batch 
-                    img1 = p1[0].detach().cpu().numpy().transpose(1,2,0)
-                    img2 = p2[0].detach().cpu().numpy().transpose(1,2,0)
-                    img1 = (img1 * 255 ).astype(np.uint8)
-                    img2 = (img2 * 255 ).astype(np.uint8)
-                    cv2.imshow('img1', img1)
-                    cv2.imshow('img2', img2)
-                    cv2.waitKey(1)
+                    # # show batch 
+                    # img1 = p1[0].detach().cpu().numpy().transpose(1,2,0)
+                    # img2 = p2[0].detach().cpu().numpy().transpose(1,2,0)
+                    # img1 = (img1 * 255 ).astype(np.uint8)
+                    # img2 = (img2 * 255 ).astype(np.uint8)
+                    # cv2.imshow('img1', img1)
+                    # cv2.imshow('img2', img2)
+                    # cv2.waitKey(1)
 
                 else:
                     p1, p2, Hs = make_batch_sfm(augmentor, difficulty)
