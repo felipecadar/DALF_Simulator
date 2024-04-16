@@ -8,9 +8,8 @@ from modules.models.DALF import DALF_extractor as DALF
 import torch
 import cv2
 
-# network_path='/home/cadar/Documents/Github/DALF_Simulator/weights/model_ts-fl_final.pth'
-# network_path='/home/cadar/Documents/Github/DALF_Simulator/scratch/model_ts-fl_190002_final.pth'
-network_path='/home/cadar/Documents/Github/DALF_Simulator/finetune2/model_ts-fl_90000_final.pth'
+network_path='weights/model_ts-fl_final.pth'
+
 
 dalf = DALF(model=network_path, dev=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 
@@ -42,6 +41,11 @@ matches = sorted(matches, key = lambda x:x.distance)
 
 img3 = cv2.drawMatches(img1, kps1, img2, kps2, matches, None, flags=2)
 
-cv2.imshow('Matches', img3)
-cv2.imshow('Keypoints', kp_image)
-cv2.waitKey(0)
+cv2.imwrite('matches.png', img3)
+cv2.imwrite('kps.png', kp_image)
+
+#cv2.imshow('Matches', img3)
+#cv2.imshow('Keypoints', kp_image)
+#cv2.waitKey(0)
+
+
