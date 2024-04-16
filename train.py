@@ -120,7 +120,7 @@ def train(args):
 
     else:
         #reduce batch size due to memory constraints 
-        batch_size = 6 // BATCH_SCALE
+        batch_size = 4 // BATCH_SCALE
         steps = (95_001 * BATCH_SCALE) if not args.dry_run else 1000
         lr = 2e-4
 
@@ -439,6 +439,11 @@ def train(args):
                 fig = plt.figure(figsize = (8, 6), dpi = 100)
                 print('difficulty %.3f'%(difficulty))
            
+            if loss is None or loss_kp is None:
+                print("Loss is None")
+                print("Skipped all samples in batch")
+                continue
+
             #loss = -loss.mean() #average across batch
             loss = -(loss.mean() + loss_kp.mean())
             #hard_loss = hard_loss.mean()
