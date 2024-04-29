@@ -114,14 +114,14 @@ def train(args):
     BATCH_SCALE = 2
 
     if args.mode == 'end2end-backbone' or args.mode == 'ts1':
-        batch_size = 12 // BATCH_SCALE
-        steps = (80_000 * BATCH_SCALE) if not args.dry_run else 1000
+        batch_size = 12
+        steps = 80_000 if not args.dry_run else 1000
         lr = 1e-3
 
     else:
         #reduce batch size due to memory constraints 
-        batch_size = 4 // BATCH_SCALE
-        steps = (95_001 * BATCH_SCALE) if not args.dry_run else 1000
+        batch_size = 6
+        steps = 95_001 if not args.dry_run else 1000
         lr = 2e-4
 
     if args.mode == 'end2end-backbone':
@@ -129,7 +129,7 @@ def train(args):
     else:
         backbone_nfeats = 64      
 
-    num_grad_accs = 4*BATCH_SCALE # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
+    num_grad_accs = 4 # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
 
     if args.dry_run:
         batch_size = 2
