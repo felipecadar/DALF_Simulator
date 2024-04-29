@@ -137,10 +137,19 @@ def train(args):
 
     if args.simulation:
         from modules.dataset.simulation import KubrickInstances
+        splits_0 = ['illumination-viewpoint']
+        splits_1 = ['deformation_1', 'deformation_1-illumination-viewpoint']
+        splits_2 = ['deformation_2', 'deformation_2-illumination-viewpoint']
+        splits_3 = ['deformation_3', 'deformation_3-illumination-viewpoint']
+        
         simulation_data = KubrickInstances({
             "data_dir": args.sim_datapath,
-            "return_tensors": True
+            "return_tensors": True,
+            "splits": splits_0,
         })
+        
+        triggers = [0.05, 0.1, 0.2]
+        splits_progress = [splits_1, splits_2, splits_3]
 
         print("Simulation dataset loaded. Size: ", len(simulation_data))
 
@@ -215,6 +224,7 @@ def train(args):
 
 
     opt.zero_grad()
+    last_change = 0
     with tqdm.tqdm(total=steps) as pbar:
         for i in range(steps):          
             if i < steps/3:
@@ -229,7 +239,15 @@ def train(args):
                 difficulty = 0.25
             else:
                 difficulty = 0.30
-
+            
+            for j, t in enumerate(triggers):
+                if last_change < t and i > t * steps:
+                    if simulation_data.config['splits'] != splits_progress[j]:
+                        print(f'updating splits in step {i} to {splits_progress[j]}...')
+                        simulation_data.config['splits'] = splits_progress[j]
+                        simulation_data.reload_pairs()
+                        last_change = t
+                           
             #Initialize vars for current step
             #We need to handle batching because the description can have arbitrary number of keypoints
             mean_correct = 0
