@@ -133,6 +133,7 @@ class KubrickInstances(Dataset):
         "data_dir": LOCAL_DATA,
         "max_pairs": -1,
         "return_tensors": True,
+        "splits": ['illumination-viewpoint', 'deformation_2', 'deformation_2-illumination-viewpoint', 'deformation_1', 'deformation_1-illumination-viewpoint', 'deformation_3', 'deformation_3-illumination-viewpoint']
     }
 
     def __init__(self, config={}) -> None:
@@ -146,7 +147,16 @@ class KubrickInstances(Dataset):
         with open(dataset_path + 'selected_pairs_v2.json') as f:
             self.experiments_definition = json.load(f)
             
-        global_pairs = [ self.experiments_definition[key][subset] for key in self.experiments_definition for subset in self.experiments_definition[key] ]
+        self.reload_pairs()
+            
+        # self.all_samples = {}
+        # for image_path in tqdm(self.all_images, desc="Loading all images"):
+        #     self.all_samples[image_path] = load_sample(image_path)
+            
+        self.sample_image = cv2.imread(self.all_images[0])
+        
+    def reload_pairs(self):
+        global_pairs = [ self.experiments_definition[key][subset] for key in self.config['splits'] for subset in self.experiments_definition[key] ]
         global_pairs = reduce(lambda x, y: x + y, global_pairs)
         
         if self.config['max_pairs'] > 0:
@@ -171,12 +181,6 @@ class KubrickInstances(Dataset):
             self.all_images.append(self.all_pairs[-1]['image1_path'])
             
         self.all_images = list(set(self.all_images))
-            
-        # self.all_samples = {}
-        # for image_path in tqdm(self.all_images, desc="Loading all images"):
-        #     self.all_samples[image_path] = load_sample(image_path)
-            
-        self.sample_image = cv2.imread(self.all_images[0])
     
     def load_sample(self, rgb_path):
         # if rgb_path not in self.all_samples:
