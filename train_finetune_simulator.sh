@@ -1,3 +1,6 @@
+#!/bin/ksh 
+#$ -q gpu
+#$ -o finetune.out
 
 module load python/3.10/anaconda/2023.03
 module load cuda/11.3.1
