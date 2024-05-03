@@ -240,13 +240,14 @@ def train(args):
             else:
                 difficulty = 0.30
             
-            for j, t in enumerate(triggers):
-                if last_change < t and i > t * steps:
-                    if simulation_data.config['splits'] != splits_progress[j]:
-                        print(f'updating splits in step {i} to {splits_progress[j]}...')
-                        simulation_data.config['splits'] = splits_progress[j]
-                        simulation_data.reload_pairs()
-                        last_change = t
+            if not args.finetune:
+                for j, t in enumerate(triggers):
+                    if last_change < t and i > t * steps:
+                        if simulation_data.config['splits'] != splits_progress[j]:
+                            print(f'updating splits in step {i} to {splits_progress[j]}...')
+                            simulation_data.config['splits'] = splits_progress[j]
+                            simulation_data.reload_pairs()
+                            last_change = t
                            
             #Initialize vars for current step
             #We need to handle batching because the description can have arbitrary number of keypoints

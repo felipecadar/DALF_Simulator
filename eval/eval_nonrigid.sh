@@ -20,7 +20,7 @@ metrics_path='./plotUnorderedPR.py'
 #ablation='model_ts2_095000'
 
 #For final eval
-ablation='scratch_model_ts-fl'
+ablation='multistage_50K_ts-fl'
 # ablation='original_model_ts-fl'
 # ablation='finetune3_model_ts-fl'
 
@@ -30,7 +30,8 @@ ablation='scratch_model_ts-fl'
 # network_path='/home/cadar/Documents/Github/DALF_Simulator/scratch2/model_ts-fl_035000.pth'
 # network_path='/home/cadar/Documents/Github/DALF_Simulator/scratch/model_ts-fl_190002_final.pth'
 #network_path='ablation_models/'$ablation'.pth'
-network_path='../weights/model_ts-fl_simulation_35K.pth'
+# network_path='../weights/model_ts-fl_simulation_35K.pth'
+network_path='../weights/model_ts-fl_multistage_50K.pth'
 
 #Original TPS files
 tps_dir_o=$PATH_TPS
@@ -53,7 +54,7 @@ rm *.dict
 inputdir=$out_path
 
 #Metric type: [MS, MMA, inliers]
-metric=MS
+metric=MMA
 
 python3 $metrics_path -i $inputdir/Kinect1 -d --tps_path $tps_dir --mode erase --metric $metric
 python3 $metrics_path -i $inputdir/Kinect2Sampled -d --tps_path $tps_dir --mode append --metric $metric
