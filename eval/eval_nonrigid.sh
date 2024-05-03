@@ -20,7 +20,8 @@ metrics_path='./plotUnorderedPR.py'
 #ablation='model_ts2_095000'
 
 #For final eval
-ablation='multistage_50K_ts-fl'
+# ablation='multistage_50K_ts-fl'
+ablation='scratch_mixed_model_ts-fl'
 # ablation='original_model_ts-fl'
 # ablation='finetune3_model_ts-fl'
 
@@ -31,7 +32,8 @@ ablation='multistage_50K_ts-fl'
 # network_path='/home/cadar/Documents/Github/DALF_Simulator/scratch/model_ts-fl_190002_final.pth'
 #network_path='ablation_models/'$ablation'.pth'
 # network_path='../weights/model_ts-fl_simulation_35K.pth'
-network_path='../weights/model_ts-fl_multistage_50K.pth'
+# network_path='../weights/model_ts-fl_multistage_50K.pth'
+network_path='../weights/model_ts-fl_simulation.pth'
 
 #Original TPS files
 tps_dir_o=$PATH_TPS
@@ -47,19 +49,19 @@ cp -rf $tps_dir_o $tps_dir
 python3 $extract_gt_path -i $PATH_IMGS --tps_dir $tps_dir --dir -m pgdeal --net_path $network_path 
 python3 $benchmark_path -i $PATH_IMGS -o $out_path --dir --sift --tps_path $tps_dir --net_path $network_path
 
-#Remove old results cache
-rm *.dict
+# #Remove old results cache
+# rm *.dict
 
-#Show metric results
-inputdir=$out_path
+# #Show metric results
+# inputdir=$out_path
 
-#Metric type: [MS, MMA, inliers]
-metric=MMA
+# #Metric type: [MS, MMA, inliers]
+# metric=MMA
 
-python3 $metrics_path -i $inputdir/Kinect1 -d --tps_path $tps_dir --mode erase --metric $metric
-python3 $metrics_path -i $inputdir/Kinect2Sampled -d --tps_path $tps_dir --mode append --metric $metric
-python3 $metrics_path -i $inputdir/SimulationICCV -d --tps_path $tps_dir --mode erase --metric $metric
-python3 $metrics_path -i $inputdir/DeSurTSampled -d --tps_path $tps_dir --mode append --metric $metric
+# python3 $metrics_path -i $inputdir/Kinect1 -d --tps_path $tps_dir --mode erase --metric $metric
+# python3 $metrics_path -i $inputdir/Kinect2Sampled -d --tps_path $tps_dir --mode append --metric $metric
+# python3 $metrics_path -i $inputdir/SimulationICCV -d --tps_path $tps_dir --mode erase --metric $metric
+# python3 $metrics_path -i $inputdir/DeSurTSampled -d --tps_path $tps_dir --mode append --metric $metric
 
-#Show stored final scores
-python3 $metrics_path -i $inputdir/SimulationICCV -d --tps_path $tps_dir --mode append --metric $metric --gmean
+# #Show stored final scores
+# python3 $metrics_path -i $inputdir/SimulationICCV -d --tps_path $tps_dir --mode append --metric $metric --gmean

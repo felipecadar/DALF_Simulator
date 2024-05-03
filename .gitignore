@@ -170,3 +170,6 @@ log_dir_classic/
 finetune2/
 *.dict
 scratch/
+weights/*/
+
+_*/
