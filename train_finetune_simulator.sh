@@ -9,7 +9,7 @@ pip install opencv-python tqdm kornia matplotlib tensorboard scipy
 cd /work/icb/fc787762/Github/DALF_Simulator/
 
 
-sim_data='/work/cadar/Datasets/simulation_v2/train_single_obj/'
+sim_data='/work/icb/fc787762/Datasets/train_single_object/'
 PRETRAINED="weights"
 FOLDER="finetune3"
 
