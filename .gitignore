@@ -170,3 +170,8 @@ log_dir_classic/
 finetune2/
 *.dict
 scratch/
+scratch_stage2/
+finetune_new_triggers/
+runs/
+*.out
+finetune3/

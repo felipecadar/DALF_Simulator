@@ -148,7 +148,7 @@ def train(args):
             "splits": splits_0,
         })
         
-        triggers = [0.05, 0.1, 0.2]
+        triggers = [0.01, 0.02, 0.5]
         splits_progress = [splits_1, splits_2, splits_3]
 
         print("Simulation dataset loaded. Size: ", len(simulation_data))
