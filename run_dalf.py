@@ -8,8 +8,9 @@ from modules.models.DALF import DALF_extractor as DALF
 import torch
 import cv2
 
-network_path='weights/model_ts-fl_final.pth'
-
+# network_path='weights/model_ts-fl_final.pth'
+# network_path='weights/model_ts-fl_multistage_50K.pth'
+network_path='weights/model_ts-fl_simulation_35K.pth'
 
 dalf = DALF(model=network_path, dev=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 
@@ -24,7 +25,7 @@ border = 10
 kps1_idxs = [i for i, kp in enumerate(kps1) if kp.pt[0] > border and kp.pt[0] < img1.shape[1] - border and kp.pt[1] > border and kp.pt[1] < img1.shape[0] - border]
 kps2_idxs = [i for i, kp in enumerate(kps2) if kp.pt[0] > border and kp.pt[0] < img2.shape[1] - border and kp.pt[1] > border and kp.pt[1] < img2.shape[0] - border]
 
-kps1_idxs = kps1_idxs[:10]
+# kps1_idxs = kps1_idxs[:10]
 
 kps1 = [kps1[i] for i in kps1_idxs]
 kps2 = [kps2[i] for i in kps2_idxs]

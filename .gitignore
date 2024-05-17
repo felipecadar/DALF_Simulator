@@ -175,3 +175,5 @@ finetune_new_triggers/
 runs/
 *.out
 finetune3/
+weights/*/
+_*/
