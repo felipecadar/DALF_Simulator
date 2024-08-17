@@ -26,6 +26,9 @@ def parseArg():
 
     parser.add_argument("-sim", "--simulation", help="Use simulation dataset", action='store_true'
     , required=False, default = False) 
+    
+    parser.add_argument("--desurt", help="Use simulation dataset", action='store_true'
+    , required=False, default = False) 
 
     parser.add_argument("--finetune", help="Use simulation dataset", action='store_true'
     , required=False, default = False) 
@@ -46,7 +49,7 @@ def parseArg():
     if not args.dry_run and not os.path.exists(args.save):
         raise RuntimeError(args.save + ' does not exist!')
 
-    if not args.simulation:
+    if not args.simulation and not args.desurt:
         if len( glob.glob(args.datapath)) == 0:
             raise RuntimeError(args.datapath + ': no images found')
 
@@ -120,7 +123,8 @@ def train(args):
 
     else:
         #reduce batch size due to memory constraints 
-        batch_size = 6
+        # batch_size = 6
+        batch_size = 4
         steps = 95_001 if not args.dry_run else 1000
         lr = 2e-4
 
@@ -152,6 +156,10 @@ def train(args):
         splits_progress = [splits_1, splits_2, splits_3]
 
         print("Simulation dataset loaded. Size: ", len(simulation_data))
+        
+    elif args.desurt:
+        from modules.dataset.desurt import DeSurT
+        desurt_data = DeSurT()
 
     else:
         augmentor = AugmentationPipe(device = dev,  
@@ -217,6 +225,14 @@ def train(args):
         p1 = [x['image0'] for x in batch]
         p2 = [x['image1'] for x in batch]
 
+        p1 = torch.stack(p1).to(dev).float()
+        p2 = torch.stack(p2).to(dev).float()
+        
+    elif args.desurt:
+        batch = desurt_data.sample_batch(batch_size)
+        p1 = [x['image0'] for x in batch]
+        p2 = [x['image1'] for x in batch]
+        
         p1 = torch.stack(p1).to(dev).float()
         p2 = torch.stack(p2).to(dev).float()
     else:
@@ -291,6 +307,14 @@ def train(args):
                     # cv2.imshow('img1', img1)
                     # cv2.imshow('img2', img2)
                     # cv2.waitKey(1)
+                    
+                elif args.desurt:
+                    batch = desurt_data.sample_batch(batch_size)
+                    p1 = [x['image0'] for x in batch]
+                    p2 = [x['image1'] for x in batch]
+                    
+                    p1 = torch.stack(p1).to(dev).float()
+                    p2 = torch.stack(p2).to(dev).float()
 
                 else:
                     p1, p2, Hs = make_batch_sfm(augmentor, difficulty)
@@ -335,6 +359,10 @@ def train(args):
                     # image1 = batch[b]['image1']
                     # image0 = (image0.detach().cpu().numpy().transpose(1,2,0) * 255 ).astype(np.uint8)
                     # image1 = (image1.detach().cpu().numpy().transpose(1,2,0) * 255 ).astype(np.uint8)
+                elif args.desurt:
+                    idx = desurt_data.find_correspondences(batch[b], kpts1[b]['xy'], kpts2[b]['xy'])
+                    patches1 = kpts1[b]['patches'][idx[:, 0]]
+                    patches2 = kpts2[b]['patches'][idx[:, 1]]
 
                 else:
                     idx, patches1, patches2 = get_positive_corrs(kpts1[b], kpts2[b], Hs[b], augmentor, i)
@@ -419,6 +447,9 @@ def train(args):
 
                 if args.simulation:
                     dense_rewards, dense_rwd_sum = get_dense_rewards_simulation(kpts1[b]['xy'], kpts2[b]['xy'], warp10,
+                                                                                        penalty = fp_penalty * alpha)
+                elif args.desurt:
+                    dense_rewards, dense_rwd_sum = get_dense_rewards_desurt(kpts1[b]['xy'], kpts2[b]['xy'], batch[b], desurt_data,
                                                                                         penalty = fp_penalty * alpha)
                 else:
                     dense_rewards, dense_rwd_sum = get_dense_rewards(kpts1[b]['xy'], kpts2[b]['xy'], Hs[b], augmentor,
@@ -509,9 +540,14 @@ def train(args):
                             ssim_loss = ssimloss.mean().item()*2. if i > 150 and ssimloss is not None else 0.)
             
 
-            if i%5000 == 0:
-                if not args.dry_run:
-                    torch.save(net.state_dict(), args.save + '/model_' + args.mode + '_%06d'%i + '.pth')
+            if args.desurt:
+                if i%100 == 0:
+                    if not args.dry_run:
+                        torch.save(net.state_dict(), args.save + '/model_' + args.mode + '_%06d'%i + '.pth')
+            else:
+                if i%5000 == 0:
+                    if not args.dry_run:
+                        torch.save(net.state_dict(), args.save + '/model_' + args.mode + '_%06d'%i + '.pth')
         #     scheduler.step()
 
     #save the model

@@ -140,6 +140,27 @@ def get_dense_rewards(kps1, kps2, H, augmentor, penalty = 0., px_thr = 1.5):
         # import pdb; pdb.set_trace()
     return reward_mat, reward_sum
     
+# from .dataset.desurt import DeSurT
+def get_dense_rewards_desurt(kps1, kps2, sample, dataset, penalty = 0., px_thr = 1.5):
+    with torch.no_grad():
+        warped, valid = dataset.warp10(kps2, sample)
+        warped[~valid] = -1.
+
+        d_mat = torch.cdist(kps1, warped)
+        x_vmins, x_mins = torch.min(d_mat, dim=1)
+        y_mins = torch.arange(len(x_mins)).long()
+
+        d_mat[y_mins, x_mins] *= -1.
+        d_mat[d_mat >= 0.] = 0.
+        d_mat[d_mat < -px_thr] = 0.
+        d_mat[d_mat != 0.] = 1.
+
+        reward_mat = d_mat
+        reward_sum = reward_mat.sum() 
+        reward_mat[reward_mat == 0.] = penalty
+        # import pdb; pdb.set_trace()
+    return reward_mat, reward_sum
+    
     
 def get_positive_corrs(kps1, kps2, H, augmentor, i=0, px_thr = 1.5):
     with torch.no_grad():
