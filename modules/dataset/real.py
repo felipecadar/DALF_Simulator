@@ -41,12 +41,14 @@ def tps_sparse(theta, ctrl, xy):
     z = tps(theta, ctrl, grid.view(N,M,1,3))
     return xy + z.view(N, M, 2)
 
-class DeSurT(Dataset):
-    def __init__(self, eval_bench='/Users/cadar/Documents/Datasets/eval_bench', use_cache=True, load_all=True) -> None:
+class RealData(Dataset):
+    def __init__(self, eval_bench='/Users/cadar/Documents/Datasets/eval_bench', dataset="Kinect2Sampled", use_cache=True, load_all=True) -> None:
         super().__init__()
+        
+        assert dataset in ['Kinect2Sampled', 'Kinect1', 'DeSurTSampled', 'SimulationICCV'], "Unknown dataset"
 
-        self.all_png = os.path.join(eval_bench, 'All_PNG/DeSurTSampled/')
-        self.gt_tps = os.path.join(eval_bench, 'gt_tps/DeSurTSampled/')
+        self.all_png = os.path.join(eval_bench, 'All_PNG/' + dataset + "/")
+        self.gt_tps = os.path.join(eval_bench, 'gt_tps/' + dataset + "/")
         
         self.all_pairs = glob.glob(os.path.join(self.all_png, '*/*-rgb.png'))
         # remove the ones with "cloud_master" in the name
@@ -187,10 +189,14 @@ class DeSurT(Dataset):
 
 if __name__ == "__main__":
     
-    ds = DeSurT(use_cache=False, load_all=False)
+    ds = RealData(use_cache=False, load_all=False)
+
+    print(len(ds))
 
     from easy_local_features.feature.baseline_xfeat import XFeat_baseline
     xfeat = XFeat_baseline()
+    
+    
     
     batch = ds.sample_batch(4)
     

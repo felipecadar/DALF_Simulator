@@ -20,5 +20,5 @@ FOLDER="desurt_0"
 # python train.py -sim --pretrained $FOLDER/model_ts1_160000_final.pth -log $FOLDER -s $FOLDER -m ts-fl
 # python train.py -sim -sdpath $sim_data --pretrained $weights -log $FOLDER -s $FOLDER -m ts-fl 
 # python train.py -sim -sdpath $sim_data -log $FOLDER -s $FOLDER -m ts1
-python train.py --desurt -sdpath $sim_data -log $FOLDER -s $FOLDER -m ts-fl --pretrained $PRETRAINED --finetune
+python train.py --real_data -sdpath $sim_data -log $FOLDER -s $FOLDER -m ts-fl --pretrained $PRETRAINED --finetune
 
