@@ -27,7 +27,7 @@ def parseArg():
     parser.add_argument("-sim", "--simulation", help="Use simulation dataset", action='store_true'
     , required=False, default = False) 
     
-    parser.add_argument("--desurt", help="Use simulation dataset", action='store_true'
+    parser.add_argument("--real_data", help="Use real data", action='store_true'
     , required=False, default = False) 
 
     parser.add_argument("--finetune", help="Use simulation dataset", action='store_true'
@@ -49,7 +49,7 @@ def parseArg():
     if not args.dry_run and not os.path.exists(args.save):
         raise RuntimeError(args.save + ' does not exist!')
 
-    if not args.simulation and not args.desurt:
+    if not args.simulation and not args.real_data:
         if len( glob.glob(args.datapath)) == 0:
             raise RuntimeError(args.datapath + ': no images found')
 
@@ -134,12 +134,14 @@ def train(args):
     if args.mode == 'end2end-backbone':
         backbone_nfeats = 128
     else:
-        backbone_nfeats = 64      
+        backbone_nfeats = 64
 
     num_grad_accs = 4 # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
 
     if args.dry_run:
         batch_size = 2
+        
+    batch_size = 1
 
     print('Batch size: ', batch_size)
 
@@ -161,11 +163,14 @@ def train(args):
 
         print("Simulation dataset loaded. Size: ", len(simulation_data))
         
-        
-    elif args.desurt:
-        from modules.dataset.desurt import DeSurT
-        desurt_data = DeSurT()
-        print("DeSurT dataset loaded. Size: ", len(desurt_data))
+    elif args.real_data:
+        from modules.dataset.real import RealData
+        desurt_data = RealData(
+            eval_bench = '/Users/cadar/Documents/Datasets/eval_bench',
+            dataset = "Kinect2Sampled",
+            use_cache = True,
+            load_all = True
+        )
 
     else:
         augmentor = AugmentationPipe(device = dev,  
@@ -241,7 +246,7 @@ def train(args):
         p1 = torch.stack(p1).to(dev).float()
         p2 = torch.stack(p2).to(dev).float()
         
-    elif args.desurt:
+    elif args.real_data:
         batch = desurt_data.sample_batch(batch_size)
         p1 = [x['image0'] for x in batch]
         p2 = [x['image1'] for x in batch]
@@ -321,7 +326,7 @@ def train(args):
                     # cv2.imshow('img2', img2)
                     # cv2.waitKey(1)
                     
-                elif args.desurt:
+                elif args.real_data:
                     batch = desurt_data.sample_batch(batch_size)
                     p1 = [x['image0'] for x in batch]
                     p2 = [x['image1'] for x in batch]
@@ -372,7 +377,7 @@ def train(args):
                     # image1 = batch[b]['image1']
                     # image0 = (image0.detach().cpu().numpy().transpose(1,2,0) * 255 ).astype(np.uint8)
                     # image1 = (image1.detach().cpu().numpy().transpose(1,2,0) * 255 ).astype(np.uint8)
-                elif args.desurt:
+                elif args.real_data:
                     idx = desurt_data.find_correspondences(batch[b], kpts1[b]['xy'], kpts2[b]['xy'])
                     patches1 = kpts1[b]['patches'][idx[:, 0]]
                     patches2 = kpts2[b]['patches'][idx[:, 1]]
@@ -460,7 +465,7 @@ def train(args):
                 if args.simulation:
                     dense_rewards, dense_rwd_sum = get_dense_rewards_simulation(kpts1[b]['xy'], kpts2[b]['xy'], warp10,
                                                                                         penalty = fp_penalty * alpha)
-                elif args.desurt:
+                elif args.real_data:
                     dense_rewards, dense_rwd_sum = get_dense_rewards_desurt(kpts1[b]['xy'], kpts2[b]['xy'], batch[b], desurt_data,
                                                                                         penalty = fp_penalty * alpha)
                 else:
@@ -552,7 +557,7 @@ def train(args):
                             ssim_loss = ssimloss.mean().item()*2. if i > 150 and ssimloss is not None else 0.)
             
 
-            if args.desurt:
+            if args.real_data:
                 if i%100 == 0:
                     if not args.dry_run:
                         torch.save(net.state_dict(), args.save + '/model_' + args.mode + '_%06d'%i + '.pth')
