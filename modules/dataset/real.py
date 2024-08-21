@@ -42,13 +42,14 @@ def tps_sparse(theta, ctrl, xy):
     return xy + z.view(N, M, 2)
 
 class RealData(Dataset):
-    def __init__(self, eval_bench='/draft-nvme/cadar/eval_bench', dataset="Kinect2Sampled", use_cache=True, load_all=True) -> None:
+    def __init__(self, eval_bench='/Users/cadar/Documents/Datasets/eval_bench', dataset="Kinect2Sampled", use_cache=True, load_all=True, scale=1) -> None:
         super().__init__()
         
         assert dataset in ['Kinect2Sampled', 'Kinect1', 'DeSurTSampled', 'SimulationICCV'], "Unknown dataset"
 
         self.all_png = os.path.join(eval_bench, 'All_PNG/' + dataset + "/")
         self.gt_tps = os.path.join(eval_bench, 'gt_tps/' + dataset + "/")
+        self.scale = scale
         
         self.all_pairs = glob.glob(os.path.join(self.all_png, '*/*-rgb.png'))
         # remove the ones with "cloud_master" in the name
@@ -72,12 +73,17 @@ class RealData(Dataset):
 
     def fetch_image(self, path):
         if not self.use_cache:
-            return io.fromPath(path, batch=False)
+            im = io.fromPath(path, batch=False)
+            if self.scale != 1:
+                im = torch.nn.functional.interpolate(im.unsqueeze(0), scale_factor=self.scale, mode='bilinear', align_corners=False).squeeze(0)
+                return im
         
         if path in self.cache:
             return self.cache[path]
         else:
             img = io.fromPath(path, batch=False)
+            if self.scale != 1:
+                img = torch.nn.functional.interpolate(img.unsqueeze(0), scale_factor=self.scale, mode='bilinear', align_corners=False).squeeze(0)
             self.cache[path] = img
             return img
     
@@ -87,9 +93,12 @@ class RealData(Dataset):
         # the master is cloud_master-rgb.png
         img0_path = img1_path.replace(img1_path.split('/')[-1], 'cloud_master-rgb.png')
         
+        img0 = self.fetch_image(img0_path)
+        img1 = self.fetch_image(img1_path)
+        
         return {
-            'image0': io.fromPath(img0_path, batch=False),
-            'image1': io.fromPath(img1_path, batch=False),
+            'image0': img0,
+            'image1': img1,
             'image0_path': img0_path,
             'image1_path': img1_path
         }
@@ -107,6 +116,9 @@ class RealData(Dataset):
         img0_path = sample['image0_path']
         img1_path = sample['image1_path']
         
+        scaled_kps0 = kps0 / self.scale
+        scaled_kps1 = kps1 / self.scale
+        
         mask0_path = img0_path.replace('-rgb.png', '_objmask.png').replace('All_PNG', 'gt_tps')
         mask1_path = img1_path.replace('-rgb.png', '_objmask.png').replace('All_PNG', 'gt_tps')
         
@@ -119,23 +131,13 @@ class RealData(Dataset):
         valid1 = torch.ones(kps1.shape[0], dtype=torch.bool).to(dev)
         
         # remove keypoints that are in the mask
-        for i, kp in enumerate(kps0):
+        for i, kp in enumerate(scaled_kps0):
             if mask0[int(kp[1]), int(kp[0])] == 0:
                 valid0[i] = False
                 
-        for i, kp in enumerate(kps1):
+        for i, kp in enumerate(scaled_kps1):
             if mask1[int(kp[1]), int(kp[0])] == 0:
                 valid1[i] = False
-        
-
-        # loading_file = img1_path.replace('-rgb.png', '').replace('All_PNG', 'gt_tps')
-        # theta = torch.tensor(np.load(loading_file + '_theta.npy').astype(np.float32))
-        # ctrl_pts = torch.tensor(np.load(loading_file + '_ctrlpts.npy').astype(np.float32))
-        # score = cv2.imread(loading_file + '_SSIM.png', 0) / 255.0
-
-        # norm_factor = np.array(img1.shape[1:3][::-1], dtype = np.float32)
-        # ctrl_pts = torch.tensor(ctrl_pts)
-        # warped_coords = tps_sparse(theta, ctrl_pts, (kps1 / norm_factor)).squeeze(0).cpu().numpy() * norm_factor # kp1 projected to image0
         
         warped_coords = self.warp10(kps1, sample)[0].cpu().numpy()
         
@@ -176,8 +178,10 @@ class RealData(Dataset):
         mask1 = io.fromPath(mask1_path, batch=False)[0].to(dev)
         valid1 = torch.ones(kps1.shape[0], dtype=torch.bool).to(dev)
         
+        scaled_kps1 = kps1 / self.scale
+        
         # remove keypoints that are in the mask
-        for i, kp in enumerate(kps1):
+        for i, kp in enumerate(scaled_kps1):
             if mask1[int(kp[1]), int(kp[0])] == 0:
                 valid1[i] = False
 
@@ -185,15 +189,16 @@ class RealData(Dataset):
         theta = torch.tensor(np.load(loading_file + '_theta.npy').astype(np.float32), device=dev)
         ctrl_pts = torch.tensor(np.load(loading_file + '_ctrlpts.npy').astype(np.float32), device=dev)
 
-        norm_factor = torch.tensor(np.array(img1.shape[1:3][::-1], dtype = np.float32), device=dev)
-        warped_coords = tps_sparse(theta, ctrl_pts, (kps1 / norm_factor)).squeeze(0) * norm_factor
+        norm_factor = torch.tensor(np.array(img1.shape[1:3][::-1], dtype = np.float32), device=dev) * self.scale
+        scaled_warped_coords = tps_sparse(theta, ctrl_pts, (scaled_kps1 / norm_factor)).squeeze(0) * norm_factor
+        warped_coords = scaled_warped_coords * self.scale
 
         return warped_coords, valid1
 
 
 if __name__ == "__main__":
     
-    ds = RealData(use_cache=False, load_all=False)
+    ds = RealData(use_cache=False, load_all=False, scale=0.5)
 
     print(len(ds))
 
@@ -211,6 +216,19 @@ if __name__ == "__main__":
         kp1 = kp1.squeeze()
         
         corr = ds.find_correspondences(sample, kp0, kp1)
+        
+        mkpts0 = kp0[corr[:, 0]]
+        mkpts1 = kp1[corr[:, 1]]
+        
+        valid = corr[:, 0].cpu().numpy() >= 0
+        
+        mkpts0 = mkpts0[valid]
+        mkpts1 = mkpts1[valid]
+        
+        vis.plot_pair(sample['image0'], sample['image1'])
+        vis.plot_matches(mkpts0, mkpts1)
+        vis.show()
+        
     
 
     
