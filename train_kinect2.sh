@@ -15,7 +15,7 @@
 sim_data='/work/icb/fc787762/Datasets/train_single_object/'
 PRETRAINED="weights/model_ts-fl_050000.pth"
 # PRETRAINED="weights/model_ts-fl_final.pth"
-FOLDER="kinect2"
+FOLDER="_kinect2"
 
 PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True" python train.py --real_data -log $FOLDER -s $FOLDER -m ts1
 

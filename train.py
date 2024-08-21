@@ -141,7 +141,7 @@ def train(args):
     if args.dry_run:
         batch_size = 2
         
-    batch_size = 1
+    # batch_size = 1
 
     print('Batch size: ', batch_size)
 
@@ -166,7 +166,7 @@ def train(args):
     elif args.real_data:
         from modules.dataset.real import RealData
         desurt_data = RealData(
-            eval_bench = '/Users/cadar/Documents/Datasets/eval_bench',
+            eval_bench = '/draft-nvme/cadar/eval_bench',
             dataset = "Kinect2Sampled",
             use_cache = True,
             load_all = True
@@ -274,7 +274,7 @@ def train(args):
             else:
                 difficulty = 0.30
             
-            if not args.finetune:
+            if not args.finetune and args.simulation:
                 for j, t in enumerate(triggers):
                     if last_change < t and i > t * steps:
                         if simulation_data.config['splits'] != splits_progress[j]:
