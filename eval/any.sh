@@ -14,13 +14,10 @@ benchmark_path='./dalf_benchmark.py'
 metrics_path='./plotUnorderedPR.py'
 
 #Those names were used for the ablation study
-ablation='finetune_desurt_original'
-# ablation='finetune_desurt'
+ablation='eval_any'
 
 #Data Path
-# network_path='../weights/model_ts-fl_simulation.pth'
-# network_path='../desurt_0/model_ts-fl_000800.pth'
-network_path='../desurt_0/model_ts-fl_004000.pth'
+network_path=$2
 
 #Original TPS files
 tps_dir_o=$PATH_TPS
@@ -43,12 +40,12 @@ rm *.dict
 inputdir=$out_path
 
 #Metric type: [MS, MMA, inliers]
-metric=MS
+metric=$1
 
 python3 $metrics_path -i $inputdir/Kinect1 -d --tps_path $tps_dir --mode erase --metric $metric
 python3 $metrics_path -i $inputdir/Kinect2Sampled -d --tps_path $tps_dir --mode append --metric $metric
 python3 $metrics_path -i $inputdir/SimulationICCV -d --tps_path $tps_dir --mode erase --metric $metric
-python3 $metrics_path -i $inputdir/DeSurTSampled -d --tps_path $tps_dir --mode append --metric $metric
+#python3 $metrics_path -i $inputdir/DeSurTSampled -d --tps_path $tps_dir --mode append --metric $metric
 
 #Show stored final scores
 python3 $metrics_path -i $inputdir/SimulationICCV -d --tps_path $tps_dir --mode append --metric $metric --gmean

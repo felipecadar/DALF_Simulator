@@ -42,7 +42,7 @@ def tps_sparse(theta, ctrl, xy):
     return xy + z.view(N, M, 2)
 
 class DeSurT(Dataset):
-    def __init__(self, eval_bench='/Users/cadar/Documents/Datasets/eval_bench', use_cache=True, load_all=True) -> None:
+    def __init__(self, eval_bench='/draft-nvme/cadar/eval_bench', use_cache=False, load_all=False) -> None:
         super().__init__()
 
         self.all_png = os.path.join(eval_bench, 'All_PNG/DeSurTSampled/')
@@ -108,11 +108,13 @@ class DeSurT(Dataset):
         mask0_path = img0_path.replace('-rgb.png', '_objmask.png').replace('All_PNG', 'gt_tps')
         mask1_path = img1_path.replace('-rgb.png', '_objmask.png').replace('All_PNG', 'gt_tps')
         
-        mask0 = io.fromPath(mask0_path, batch=False)[0]
-        mask1 = io.fromPath(mask1_path, batch=False)[0]
+        dev = kps0.device
         
-        valid0 = torch.ones(kps0.shape[0], dtype=torch.bool)
-        valid1 = torch.ones(kps1.shape[0], dtype=torch.bool)
+        mask0 = io.fromPath(mask0_path, batch=False)[0].to(dev)
+        mask1 = io.fromPath(mask1_path, batch=False)[0].to(dev)
+        
+        valid0 = torch.ones(kps0.shape[0], dtype=torch.bool).to(dev)
+        valid1 = torch.ones(kps1.shape[0], dtype=torch.bool).to(dev)
         
         # remove keypoints that are in the mask
         for i, kp in enumerate(kps0):
@@ -124,14 +126,16 @@ class DeSurT(Dataset):
                 valid1[i] = False
         
 
-        loading_file = img1_path.replace('-rgb.png', '').replace('All_PNG', 'gt_tps')
-        theta = torch.tensor(np.load(loading_file + '_theta.npy').astype(np.float32))
-        ctrl_pts = torch.tensor(np.load(loading_file + '_ctrlpts.npy').astype(np.float32))
-        score = cv2.imread(loading_file + '_SSIM.png', 0) / 255.0
+        # loading_file = img1_path.replace('-rgb.png', '').replace('All_PNG', 'gt_tps')
+        # theta = torch.tensor(np.load(loading_file + '_theta.npy').astype(np.float32))
+        # ctrl_pts = torch.tensor(np.load(loading_file + '_ctrlpts.npy').astype(np.float32))
+        # score = cv2.imread(loading_file + '_SSIM.png', 0) / 255.0
 
-        norm_factor = np.array(img1.shape[1:3][::-1], dtype = np.float32)
-        ctrl_pts = torch.tensor(ctrl_pts)
-        warped_coords = tps_sparse(theta, ctrl_pts, (kps1 / norm_factor)).squeeze(0).cpu().numpy() * norm_factor # kp1 projected to image0
+        # norm_factor = np.array(img1.shape[1:3][::-1], dtype = np.float32)
+        # ctrl_pts = torch.tensor(ctrl_pts)
+        # warped_coords = tps_sparse(theta, ctrl_pts, (kps1 / norm_factor)).squeeze(0).cpu().numpy() * norm_factor # kp1 projected to image0
+        
+        warped_coords = self.warp10(kps1, sample)[0].cpu().numpy()
         
         tree = KDTree(kps0.cpu().numpy())
         dists, idxs_ref = tree.query(warped_coords)
@@ -163,11 +167,12 @@ class DeSurT(Dataset):
         return idxs
     
     def warp10(self, kps1, sample):
+        dev = kps1.device
         img1 = sample['image1']
         img1_path = sample['image1_path']
         mask1_path = img1_path.replace('-rgb.png', '_objmask.png').replace('All_PNG', 'gt_tps')
-        mask1 = io.fromPath(mask1_path, batch=False)[0]
-        valid1 = torch.ones(kps1.shape[0], dtype=torch.bool)
+        mask1 = io.fromPath(mask1_path, batch=False)[0].to(dev)
+        valid1 = torch.ones(kps1.shape[0], dtype=torch.bool).to(dev)
         
         # remove keypoints that are in the mask
         for i, kp in enumerate(kps1):
@@ -175,11 +180,10 @@ class DeSurT(Dataset):
                 valid1[i] = False
 
         loading_file = img1_path.replace('-rgb.png', '').replace('All_PNG', 'gt_tps')
-        theta = torch.tensor(np.load(loading_file + '_theta.npy').astype(np.float32))
-        ctrl_pts = torch.tensor(np.load(loading_file + '_ctrlpts.npy').astype(np.float32))
+        theta = torch.tensor(np.load(loading_file + '_theta.npy').astype(np.float32), device=dev)
+        ctrl_pts = torch.tensor(np.load(loading_file + '_ctrlpts.npy').astype(np.float32), device=dev)
 
-        norm_factor = np.array(img1.shape[1:3][::-1], dtype = np.float32)
-        ctrl_pts = torch.tensor(ctrl_pts)
+        norm_factor = torch.tensor(np.array(img1.shape[1:3][::-1], dtype = np.float32), device=dev)
         warped_coords = tps_sparse(theta, ctrl_pts, (kps1 / norm_factor)).squeeze(0) * norm_factor
 
         return warped_coords, valid1

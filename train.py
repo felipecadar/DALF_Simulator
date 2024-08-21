@@ -112,7 +112,10 @@ def train(args):
     #     raise RuntimeError('Do you really want to train without a GPU? Then comment out this if')
 
     dev = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
+    print('Using device: ', dev)
+    # # get gpu name
+    gpu_name = torch.cuda.get_device_name(0)
+    print('GPU name: ', gpu_name)
     experiment_name = args.mode
     BATCH_SCALE = 2
 
@@ -124,7 +127,7 @@ def train(args):
     else:
         #reduce batch size due to memory constraints 
         # batch_size = 6
-        batch_size = 4
+        batch_size = 2
         steps = 95_001 if not args.dry_run else 1000
         lr = 2e-4
 
@@ -138,6 +141,7 @@ def train(args):
     if args.dry_run:
         batch_size = 2
 
+    print('Batch size: ', batch_size)
 
     if args.simulation:
         from modules.dataset.simulation import KubrickInstances
@@ -157,9 +161,11 @@ def train(args):
 
         print("Simulation dataset loaded. Size: ", len(simulation_data))
         
+        
     elif args.desurt:
         from modules.dataset.desurt import DeSurT
         desurt_data = DeSurT()
+        print("DeSurT dataset loaded. Size: ", len(desurt_data))
 
     else:
         augmentor = AugmentationPipe(device = dev,  
@@ -199,6 +205,13 @@ def train(args):
 
     else:
         net = DEAL(enc_channels = [1, 32, 64, backbone_nfeats], fixed_tps = False, mode = args.mode).to(dev).train()
+
+
+    # #Freeze encoder layers
+    # for param in net.net.encoder.parameters():
+    #     param.requires_grad = False
+    # for param in net.net.features.parameters():
+    #     param.requires_grad = False
 
     #print(net)
     get_nb_trainable_params(net)
@@ -264,7 +277,7 @@ def train(args):
                             simulation_data.config['splits'] = splits_progress[j]
                             simulation_data.reload_pairs()
                             last_change = t
-                           
+                            
             #Initialize vars for current step
             #We need to handle batching because the description can have arbitrary number of keypoints
             mean_correct = 0
@@ -432,7 +445,6 @@ def train(args):
                             l_pdesc2 = F.normalize(nrdesc2)  
                             pdesc1 = l_pdesc1 if pdesc1 is None else torch.vstack((pdesc1, l_pdesc1))
                             pdesc2 = l_pdesc2 if pdesc2 is None else torch.vstack((pdesc2, l_pdesc2))
-
       
                     with torch.no_grad():
                         good_matches = torch.argmin(torch.cdist(l_pdesc1, l_pdesc2), dim=1) == torch.arange(len(l_pdesc1),
