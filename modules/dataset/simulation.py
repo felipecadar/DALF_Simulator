@@ -133,7 +133,8 @@ class KubrickInstances(Dataset):
         "data_dir": LOCAL_DATA,
         "max_pairs": -1,
         "return_tensors": True,
-        "splits": ['illumination-viewpoint', 'deformation_2', 'deformation_2-illumination-viewpoint', 'deformation_1', 'deformation_1-illumination-viewpoint', 'deformation_3', 'deformation_3-illumination-viewpoint']
+        # "splits": ['illumination-viewpoint', 'deformation_2', 'deformation_2-illumination-viewpoint', 'deformation_1', 'deformation_1-illumination-viewpoint', 'deformation_3', 'deformation_3-illumination-viewpoint']
+        "splits": ['illumination-viewpoint', 'deformation_3', 'deformation_3-illumination-viewpoint']
     }
 
     def __init__(self, config={}) -> None:
@@ -144,7 +145,7 @@ class KubrickInstances(Dataset):
         
         dataset_path = self.config['data_dir']
 
-        with open(dataset_path + 'selected_pairs_v2.json') as f:
+        with open(dataset_path + '/selected_pairs.json') as f:
             self.experiments_definition = json.load(f)
             
         self.reload_pairs()
@@ -156,7 +157,8 @@ class KubrickInstances(Dataset):
         self.sample_image = cv2.imread(self.all_images[0])
         
     def reload_pairs(self):
-        global_pairs = [ self.experiments_definition[key][subset] for key in self.config['splits'] for subset in self.experiments_definition[key] ]
+        # import pdb; pdb.set_trace()
+        global_pairs = [ self.experiments_definition[key] for key in self.config['splits']]
         global_pairs = reduce(lambda x, y: x + y, global_pairs)
         
         if self.config['max_pairs'] > 0:

@@ -126,8 +126,8 @@ def train(args):
 
     else:
         #reduce batch size due to memory constraints 
-        # batch_size = 6
-        batch_size = 2
+        batch_size = 24
+        #batch_size = 2
         steps = 95_001 if not args.dry_run else 1000
         lr = 2e-4
 
@@ -136,7 +136,7 @@ def train(args):
     else:
         backbone_nfeats = 64
 
-    num_grad_accs = 4 # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
+    num_grad_accs = 1 # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
 
     if args.dry_run:
         batch_size = 2
@@ -147,19 +147,21 @@ def train(args):
 
     if args.simulation:
         from modules.dataset.simulation import KubrickInstances
-        splits_0 = ['illumination-viewpoint']
-        splits_1 = ['deformation_1', 'deformation_1-illumination-viewpoint']
-        splits_2 = ['deformation_2', 'deformation_2-illumination-viewpoint']
+        # splits_0 = ['illumination-viewpoint']
+        # splits_1 = ['deformation_1', 'deformation_1-illumination-viewpoint']
+        # splits_2 = ['deformation_2', 'deformation_2-illumination-viewpoint']
         splits_3 = ['deformation_3', 'deformation_3-illumination-viewpoint']
         
+        # splits_progress = [splits_1, splits_2, splits_3]
+        splits_progress = [splits_3]
         simulation_data = KubrickInstances({
             "data_dir": args.sim_datapath,
             "return_tensors": True,
-            "splits": splits_0,
+            "splits": splits_progress[0],
         })
         
-        triggers = [0.01, 0.02, 0.5]
-        splits_progress = [splits_1, splits_2, splits_3]
+        # triggers = [0.01, 0.02, 0.5]
+        triggers = [0.01, 0.02]
 
         print("Simulation dataset loaded. Size: ", len(simulation_data))
         
@@ -386,29 +388,29 @@ def train(args):
                     idx, patches1, patches2 = get_positive_corrs(kpts1[b], kpts2[b], Hs[b], augmentor, i)
 
                 # plot keypoints and save to tensorboard
-                if i % 100 == 0:
-                    print('plotting keypoints...')
-                    image0 = p1[b].detach().cpu().numpy().transpose(1,2,0)
-                    image1 = p2[b].detach().cpu().numpy().transpose(1,2,0)
-                    image0 = (image0 * 255 ).astype(np.uint8)
-                    image1 = (image1 * 255 ).astype(np.uint8)
+                # if i % 100 == 0:
+                #     print('plotting keypoints...')
+                #     image0 = p1[b].detach().cpu().numpy().transpose(1,2,0)
+                #     image1 = p2[b].detach().cpu().numpy().transpose(1,2,0)
+                #     image0 = (image0 * 255 ).astype(np.uint8)
+                #     image1 = (image1 * 255 ).astype(np.uint8)
 
-                    kpts1_cv2 = kpts1[b]['xy'].detach().cpu().numpy()
-                    kpts2_cv2 = kpts2[b]['xy'].detach().cpu().numpy()
-                    kpts1_cv2 = [cv2.KeyPoint(x[0], x[1], 1) for x in kpts1_cv2]
-                    kpts2_cv2 = [cv2.KeyPoint(x[0], x[1], 1) for x in kpts2_cv2]
+                #     kpts1_cv2 = kpts1[b]['xy'].detach().cpu().numpy()
+                #     kpts2_cv2 = kpts2[b]['xy'].detach().cpu().numpy()
+                #     kpts1_cv2 = [cv2.KeyPoint(x[0], x[1], 1) for x in kpts1_cv2]
+                #     kpts2_cv2 = [cv2.KeyPoint(x[0], x[1], 1) for x in kpts2_cv2]
 
-                    positive_cors = idx.detach().cpu().numpy()
-                    positive_cors = [cv2.DMatch(x[0], x[1], 1) for x in positive_cors]
+                #     positive_cors = idx.detach().cpu().numpy()
+                #     positive_cors = [cv2.DMatch(x[0], x[1], 1) for x in positive_cors]
 
-                    match_image = cv2.drawMatches(image0, kpts1_cv2, image1, kpts2_cv2, positive_cors, None, flags=0)
+                #     match_image = cv2.drawMatches(image0, kpts1_cv2, image1, kpts2_cv2, positive_cors, None, flags=0)
 
-                    # kp_image0 = cv2.drawKeypoints(image0, kpts1_cv2, None)
-                    # kp_image1 = cv2.drawKeypoints(image1, kpts2_cv2, None)
-                    # kp_image = cv2.hconcat([kp_image0, kp_image1])
+                #     # kp_image0 = cv2.drawKeypoints(image0, kpts1_cv2, None)
+                #     # kp_image1 = cv2.drawKeypoints(image1, kpts2_cv2, None)
+                #     # kp_image = cv2.hconcat([kp_image0, kp_image1])
 
-                    # logger.log_fig(i, kp_image, f'Keypoints/{b}')
-                    logger.log_fig(i, match_image, f'Matches/{b}')
+                #     # logger.log_fig(i, kp_image, f'Keypoints/{b}')
+                #     logger.log_fig(i, match_image, f'Matches/{b}')
 
                 if len(patches1) >=16:
                 
@@ -494,17 +496,17 @@ def train(args):
                 det_kpts1 = len(kpts1[b]['xy'])
                 det_kpts2 = len(kpts2[b]['xy'])
 
-            #Plot every x steps
-            if len(patches1) >=16 and i % 200 == 0:
-                plt.draw() ;  #plt.show()
-                np_fig = grab_mpl_fig(fig)
-                logger.log_fig(i, np_fig, 'Gradient Flows')
-                fig = plot_grid( (patches1[:16], patches2[:16]) )
-                plt.draw(); np_fig = grab_mpl_fig(fig)
-                logger.log_fig(i, np_fig, 'Warped Patches')
+            # #Plot every x steps
+            # if len(patches1) >=16 and i % 200 == 0:
+            #     plt.draw() ;  #plt.show()
+            #     np_fig = grab_mpl_fig(fig)
+            #     logger.log_fig(i, np_fig, 'Gradient Flows')
+            #     fig = plot_grid( (patches1[:16], patches2[:16]) )
+            #     plt.draw(); np_fig = grab_mpl_fig(fig)
+            #     logger.log_fig(i, np_fig, 'Warped Patches')
 
-                fig = plt.figure(figsize = (8, 6), dpi = 100)
-                print('difficulty %.3f'%(difficulty))
+            #     fig = plt.figure(figsize = (8, 6), dpi = 100)
+            #     print('difficulty %.3f'%(difficulty))
            
             if loss is None or loss_kp is None:
                 print("Loss is None")
@@ -541,9 +543,9 @@ def train(args):
             loss /= num_grad_accs
             loss.backward()
         
-            if i%10 == 0:
-                plot_grad_flow(net.named_parameters())
-                #[print(i) for i in net.named_parameters()]
+            # if i%10 == 0:
+            #     plot_grad_flow(net.named_parameters())
+            #     #[print(i) for i in net.named_parameters()]
 
             if i%num_grad_accs == 0:
                 opt.step()
@@ -562,7 +564,7 @@ def train(args):
                     if not args.dry_run:
                         torch.save(net.state_dict(), args.save + '/model_' + args.mode + '_%06d'%i + '.pth')
             else:
-                if i%5000 == 0:
+                if i%100 == 0:
                     if not args.dry_run:
                         torch.save(net.state_dict(), args.save + '/model_' + args.mode + '_%06d'%i + '.pth')
         #     scheduler.step()
