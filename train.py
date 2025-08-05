@@ -120,13 +120,13 @@ def train(args):
     BATCH_SCALE = 2
 
     if args.mode == 'end2end-backbone' or args.mode == 'ts1':
-        batch_size = 12
+        batch_size = 16
         steps = 80_000 if not args.dry_run else 1000
         lr = 1e-3
 
     else:
         #reduce batch size due to memory constraints 
-        batch_size = 24
+        batch_size = 16
         #batch_size = 2
         steps = 95_001 if not args.dry_run else 1000
         lr = 2e-4
@@ -136,7 +136,7 @@ def train(args):
     else:
         backbone_nfeats = 64
 
-    num_grad_accs = 1 # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
+    num_grad_accs = 8 # this performs grad accumulation to simulate larger batch size, set to 1 to disable;
 
     if args.dry_run:
         batch_size = 2
@@ -276,14 +276,14 @@ def train(args):
             else:
                 difficulty = 0.30
             
-            if not args.finetune and args.simulation:
-                for j, t in enumerate(triggers):
-                    if last_change < t and i > t * steps:
-                        if simulation_data.config['splits'] != splits_progress[j]:
-                            print(f'updating splits in step {i} to {splits_progress[j]}...')
-                            simulation_data.config['splits'] = splits_progress[j]
-                            simulation_data.reload_pairs()
-                            last_change = t
+#            if not args.finetune and args.simulation:
+#                for j, t in enumerate(triggers):
+#                    if last_change < t and i > t * steps:
+#                        if simulation_data.config['splits'] != splits_progress[j]:
+#                            print(f'updating splits in step {i} to {splits_progress[j]}...')
+#                            simulation_data.config['splits'] = splits_progress[j]
+#                            simulation_data.reload_pairs()
+#                            last_change = t
                             
             #Initialize vars for current step
             #We need to handle batching because the description can have arbitrary number of keypoints

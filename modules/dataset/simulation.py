@@ -156,6 +156,8 @@ class KubrickInstances(Dataset):
             
         self.sample_image = cv2.imread(self.all_images[0])
         
+        # import pdb; pdb.set_trace()
+        
     def reload_pairs(self):
         # import pdb; pdb.set_trace()
         global_pairs = [ self.experiments_definition[key] for key in self.config['splits']]

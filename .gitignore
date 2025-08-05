@@ -178,5 +178,6 @@ finetune3/
 weights/*/
 _*/
 logs/
+logs_*/
 log_*.err
 log_*.out

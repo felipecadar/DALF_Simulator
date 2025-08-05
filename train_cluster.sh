@@ -24,7 +24,7 @@ FOLDER="finetune_new_triggers"
 weights=./weights/model_ts-fl_final.pth
 echo " >> Weights: $weights"
 
-sim_data='/work/icb/fc787762/Datasets/train_single_object/'
+sim_data='/lustre/fsn1/projects/rech/xab/uus28wc/Datasets/train_single_obj'
 
 # python train.py -sim --pretrained $FOLDER/model_ts1_160000_final.pth -log $FOLDER -s $FOLDER -m ts-fl
 # python train.py -sim -sdpath $sim_data --pretrained $weights -log $FOLDER -s $FOLDER -m ts-fl 
