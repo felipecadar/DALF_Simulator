@@ -1,0 +1,30 @@
+network_path='../logs_single_obj/model_ts-fl_006400.pth'
+
+
+Dataset ./Kinect1_MS.dict
+Method: dalf, score: 0.53
+----------------------------------------
+Dataset ./SimulationICCV_MS.dict
+Method: dalf, score: 0.28
+----------------------------------------
+Dataset ./Kinect2Sampled_MS.dict
+Method: dalf, score: 0.64
+----------------------------------------
+Dataset ./DeSurTSampled_MS.dict
+Method: dalf, score: 0.48
+----------------------------------------
+Method: dalf, score: 0.51
+
+Dataset ./Kinect2Sampled_MMA.dict
+Method: dalf, score: 0.92
+----------------------------------------
+Dataset ./Kinect1_MMA.dict
+Method: dalf, score: 0.82
+----------------------------------------
+Dataset ./SimulationICCV_MMA.dict
+Method: dalf, score: 0.54
+----------------------------------------
+Dataset ./DeSurTSampled_MMA.dict
+Method: dalf, score: 0.72
+----------------------------------------
+Method: dalf, score: 0.78

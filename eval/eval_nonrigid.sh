@@ -1,3 +1,5 @@
+. ../.venv/bin/activate
+
 #Please put here the path of images and TPS files from nonrigid benchmark
 EVAL_BENCH="/Users/cadar/Documents/Datasets/eval_bench"
 
